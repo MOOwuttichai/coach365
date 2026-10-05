@@ -1,4 +1,4 @@
-const CACHE = "coach365-v10";
+const CACHE = "coach365-v11";
 const SHELL = ["./", "index.html", "style.css", "app.js", "food.js", "meals.js", "exercises.js", "posecheck.js", "workout.js", "extras.js", "hiit.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 // ไฟล์ใหญ่จากภายนอกที่ไม่เปลี่ยน (ฟอนต์, AI ตรวจท่า, SDK) → ใช้ cache ก่อน
 const CACHE_FIRST = ["fonts.googleapis.com", "fonts.gstatic.com", "cdn.jsdelivr.net", "storage.googleapis.com"];

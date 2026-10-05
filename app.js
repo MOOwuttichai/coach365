@@ -31,7 +31,7 @@
     { id: "wake", time: "07:00", days: "daily", msg: "ตื่น! เข้าห้องน้ำ → ชั่งน้ำหนัก → ดื่มน้ำ 500 มล." },
     { id: "meditate", time: "07:05", days: "daily", msg: "นั่งสมาธิ 10 นาที (เปิดตัวจับเวลาในแอป)" },
     { id: "posture", time: "07:15", days: "daily", msg: "จัดบุคลิก 10 นาที (ท่าในแท็บเวท)" },
-    { id: "train", time: "07:25", days: "weekday", msg: "ได้เวลาออกกำลังกาย 30 นาที เปิดแอปดูท่าวันนี้" },
+    { id: "train", time: "07:25", days: "daily", msg: "ได้เวลาออกกำลังกายตอนเช้า เปิดแอปดูว่าวันนี้เวทหรือเดิน" },
     { id: "move", time: "10:00,11:00,14:00,15:00,16:30,17:00", days: "weekday", msg: "ลุกเดิน 3 นาที ยืดอก เก็บคาง" },
     { id: "meal1", time: "12:00", days: "daily", msg: "มื้อแรก: โปรตีนก่อน ถ่ายรูปบันทึกในแอป" },
     { id: "rest1", time: "12:30", days: "daily", msg: "พัก 30 นาที ออกจากจอ หลับตา/เดินเบาๆ", rest: 30 },
@@ -208,15 +208,35 @@
   }
   function closeKitchen() { const l = todayLog(); l.if = true; l.kitchenClosed = hmNow(); save(); celebrate("ปิดครัวแล้ว เจอกันพรุ่งนี้เที่ยง 🔒"); }
 
+  // ---------- การนอน: เป้า 7–8 ชม. ----------
+  // เข้านอน: กด "นอนแล้ว" บันทึกเวลา (หลังเที่ยงคืนถึงตี 5 นับเป็นคืนของเมื่อวาน) ตื่น: กด "ตื่นแล้ว" แอปคำนวณชั่วโมงให้
+  const yLog = () => S.logs[iso(new Date(today() - DAY))] || {};
+  function goBed() {
+    const late = new Date().getHours() < 5, k = iso(late ? new Date(today() - DAY) : today()), l = (S.logs[k] = S.logs[k] || {});
+    l.bedAt = hmNow(); if (!late && l.bedAt <= "23:30") l.sleep = true;
+    save(); celebrate(l.sleep ? "ฝันดี พรุ่งนี้เจอกัน 😴" : "ดึกไปหน่อย คืนพรุ่งนี้เข้านอนเร็วขึ้นนะ 😴"); refresh();
+  }
+  function sleepEst() {
+    const b = yLog().bedAt, n = new Date(); if (!b || n.getHours() < 4 || n.getHours() >= 10) return null;
+    const [h, m] = b.split(":").map(Number); let mins = n.getHours() * 60 + n.getMinutes() - (h * 60 + m); if (mins <= 0) mins += 1440;
+    return Math.min(12, Math.max(3, Math.round(mins / 30) / 2));
+  }
+  function setSleep(h) { todayLog().sleepH = h; save(); celebrate(h >= 7 ? `นอน ${h} ชม. พอดี ร่างกายพร้อม 💪` : `นอน ${h} ชม. น้อยไป คืนนี้เข้านอนเร็วขึ้น 30 นาที`); refresh(); }
+  function sleepAvg(n = 3) { const hs = []; for (let k = 0; k < n; k++) { const v = S.logs[iso(new Date(today() - k * DAY))]?.sleepH; if (v != null) hs.push(v); } return hs.length ? hs.reduce((a, b) => a + b, 0) / hs.length : null; }
+
   // ---------- สิ่งที่ต้องทำต่อไป ----------
   function actions() {
     const l = todayLog(), p = plan(today()), wd = today().getDay(), meals = l.food?.length || 0, target = p.steps;
     const A = [];
-    A.push({ t: "07:05", title: "นั่งสมาธิ 10 นาที", sub: "หายใจเข้า 4 ออก 6 แค่นั่งเฉยๆ", done: (l.meditateMin || 0) >= 10, btn: "เริ่มเลย", act: () => startMed(10) });
+    const est = sleepEst(), bed = yLog().bedAt;
+    A.push({ t: "07:00", title: "ตื่นแล้ว ☀️ เมื่อคืนนอนกี่ชั่วโมง", sub: est ? `เข้านอน ${bed} ตื่นตอนนี้ ≈ ${est} ชม. · เป้า 7–8 ชม.` : "เป้า 7–8 ชม. ต่อคืน กดเลือกชั่วโมงด้านล่าง", done: l.sleepH != null,
+      btn: est ? `ใช่ ${est} ชม. ✓` : "ใส่ชั่วโมง", act: est ? () => setSleep(est) : () => $("qSleep").scrollIntoView({ behavior: "smooth", block: "center" }), alt: est ? "แก้เอง" : null, altAct: () => $("qSleep").scrollIntoView({ behavior: "smooth", block: "center" }) });
+    const tired = l.sleepH != null && l.sleepH < 6 ? " · นอนน้อย วันนี้ลดท่าละ 1 เซ็ต ไม่ต้องฝืน" : "";
+    A.push({ t: "07:05", title: "นั่งสมาธิเช้า 10 นาที", sub: "หายใจเข้า 4 ออก 6 แค่นั่งเฉยๆ ใจนิ่งทั้งวัน", done: (l.medAm ?? l.meditateMin ?? 0) >= 10, btn: "เริ่มเลย", act: () => startMed(10) });
     A.push({ t: "07:15", title: "จัดบุคลิก 10 นาที", sub: "3 ท่า แก้คอยื่น ไหล่ห่อ", done: !!l.posture, btn: "▶ เริ่มเลย", act: () => startWorkout("P"), alt: "ทำแล้ว", altAct: () => setFlag("posture", "บุคลิกดีขึ้นทุกวัน 👍") });
-    if (p.session) A.push({ t: "07:25", title: (p.deload ? "🔋 Deload: " : "เวท ") + SESSIONS[p.session].name, sub: l.wStart?.[p.session] ? "ค้างไว้อยู่ กดเล่นต่อได้เลย" : p.deload ? "สัปดาห์พักฟื้น น้ำหนัก 60% 2 เซ็ต เสร็จใน 20 นาที" : "30 นาที 5 ท่า แอปจับเวลาพักและบอกน้ำหนักให้", done: !!l.workout, btn: l.wStart?.[p.session] ? "▶ เล่นต่อ" : "▶ เริ่มเลย", act: () => startWorkout(p.session), alt: "ดูท่าก่อน", altAct: () => { $("sessionPick").value = ""; show("train"); } });
-    else if (wd >= 2 && wd <= 4) A.push({ t: "07:25", title: p.month >= 7 ? "HIIT 10 นาที" : "เดิน 20 นาที (หรือ HIIT 10 นาที)", sub: p.month >= 7 ? "แรงกระแทกต่ำ ไม่ต้องกระโดด แอปบอกท่าและจับเวลาให้" : "วันพักเวท เดินเบาๆ พอ อยากลอง HIIT ก็ได้", done: !!l.walkAm || !!l.hiit, btn: p.month >= 7 ? "▶ เริ่ม HIIT" : "เดินแล้ว", act: p.month >= 7 ? startHiit : () => setFlag("walkAm", "เยี่ยม 🚶"), alt: p.month >= 7 ? "เดินแทน" : "▶ HIIT", altAct: p.month >= 7 ? () => setFlag("walkAm", "เยี่ยม 🚶") : startHiit });
-    else A.push({ t: "07:25", title: p.activity, sub: "วันพักเวท เดินเบาๆ พอ", done: !!l.walkAm, btn: "เดินแล้ว", act: () => setFlag("walkAm", "เยี่ยม 🚶") });
+    if (p.session) A.push({ t: "07:25", title: (p.deload ? "🔋 Deload: " : "เวท ") + SESSIONS[p.session].name, sub: l.wStart?.[p.session] ? "ค้างไว้อยู่ กดเล่นต่อได้เลย" : p.deload ? "สัปดาห์พักฟื้น น้ำหนัก 60% 2 เซ็ต เสร็จใน 20 นาที" : "30 นาที 5 ท่า แอปจับเวลาพักและบอกน้ำหนักให้" + tired, done: !!l.workout, btn: l.wStart?.[p.session] ? "▶ เล่นต่อ" : "▶ เริ่มเลย", act: () => startWorkout(p.session), alt: "ดูท่าก่อน", altAct: () => { $("sessionPick").value = ""; show("train"); } });
+    else if (wd >= 2 && wd <= 4) A.push({ t: "07:25", title: p.month >= 7 ? "HIIT 10 นาที" : "เดิน 20 นาที (หรือ HIIT 10 นาที)", sub: (p.month >= 7 ? "แรงกระแทกต่ำ ไม่ต้องกระโดด แอปบอกท่าและจับเวลาให้" : "วันพักเวท เดินเช้า 20 นาที อยากลอง HIIT ก็ได้") + (tired ? " · นอนน้อย เดินแทน HIIT" : ""), done: !!l.walkAm || !!l.hiit, btn: p.month >= 7 ? "▶ เริ่ม HIIT" : "เดินแล้ว", act: p.month >= 7 ? startHiit : () => setFlag("walkAm", "เยี่ยม 🚶"), alt: p.month >= 7 ? "เดินแทน" : "▶ HIIT", altAct: p.month >= 7 ? () => setFlag("walkAm", "เยี่ยม 🚶") : startHiit });
+    else A.push({ t: "07:25", title: p.activity, sub: "วันพักเวท ออกไปเดินตอนเช้า แดดเช้าช่วยให้คืนนี้หลับง่าย", done: !!l.walkAm, btn: "เดินแล้ว", act: () => setFlag("walkAm", "เยี่ยม 🚶") });
     const meal = (t, slot, title, need) => {
       const m = plannedMeal(slot);
       A.push({ t, title, sub: `ตามแผน: ${m.th} (${m.kcal} kcal)`, done: meals >= need, btn: "กินตามแผน ✓", act: () => { addMeal([m], "ตามแผน"); celebrate(`บันทึก ${m.th} แล้ว`); }, alt: "ถ่ายรูป", altAct: () => { show("food"); $("photoIn").click(); } });
@@ -234,8 +254,10 @@
       sub: full ? `หลังเข้าห้องน้ำ ก่อนกินดื่ม · เอววัดระดับสะดือ หายใจออกปกติ ไม่แขม่ว${neck ? " · คอวัดใต้ลูกกระเดือก" : ""}` : "ตอนเช้าก่อนกินแม่นสุด แต่ตอนไหนก็ได้ดีกว่าไม่ชั่ง",
       done: l.weight != null && (!full || l.waist != null) && (!neck || l.neck != null), btn: "ใส่ตัวเลข",
       act: () => (full ? $("logForm") : $("qWeight")).scrollIntoView({ behavior: "smooth", block: "center" }) });
-    A.push({ t: "23:00", title: "สมาธิก่อนนอน 5 นาที", sub: "แล้ววางมือถือไกลเตียง", done: (l.meditateMin || 0) >= 15, btn: "เริ่มเลย", act: () => startMed(5) });
-    A.push({ t: "23:15", title: "นอน", sub: "7.5 ชั่วโมง คือยาลดน้ำหนักที่ดีที่สุด", done: !!l.sleep, btn: "นอนแล้ว 😴", act: () => setFlag("sleep", "ฝันดี พรุ่งนี้เจอกัน") });
+    A.push({ t: "23:00", title: "สมาธิก่อนนอน 5 นาที", sub: "แล้ววางมือถือไกลเตียง", done: (l.medNight ?? ((l.meditateMin || 0) >= 15 ? 5 : 0)) >= 5, btn: "เริ่มเลย", act: () => startMed(5) });
+    const avg = sleepAvg();
+    A.push({ t: "23:15", title: "นอน (ตื่น 07:00 = 7 ชม. 45 นาที)", sub: avg != null && avg < 7 ? `3 คืนล่าสุดนอนเฉลี่ย ${avg.toFixed(1)} ชม. คืนนี้เข้านอนเร็วขึ้นได้ยิ่งดี` : "ห้องมืด เย็น มือถือไกลเตียง นอนพอ = หิวน้อย กล้ามไม่หาย",
+      done: !!l.sleep || !!l.bedAt, btn: "นอนแล้ว 😴", act: goBed });
     return A.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
   }
   let heroActs = [];
@@ -262,6 +284,11 @@
         + `<div class="row">${steps.map(([t], k) => `<button class="btn ${k ? "ghost" : ""}" type="button" data-hero="${k}">${t}</button>`).join("")}</div>`;
       heroActs = steps.map((s) => s[1]);
       return;
+    }
+    // หลังเที่ยงคืน ยังไม่ได้กดนอน: ชวนนอนก่อน (นับเป็นคืนของเมื่อวาน)
+    if (now < "05:00" && !yLog().bedAt) {
+      h.innerHTML = `<div class="eyebrow">${now} · เลยเวลานอนแล้ว</div><h2>วางมือถือ แล้วนอนเลย 😴</h2><p>ตื่น 07:00 ยังได้นอนอีก ${Math.max(0, (420 - (Number(now.slice(0, 2)) * 60 + Number(now.slice(3)))) / 60).toFixed(1)} ชม. นอนน้อยทำให้หิวง่ายและแรงตก</p><div class="row"><button class="btn" type="button" data-hero="0">นอนแล้ว 😴</button></div>`;
+      heroActs = [goBed]; return;
     }
     if (!a) { h.innerHTML = `<div class="eyebrow">วันที่ ${i + 1}</div><h2>วันนี้ครบทุกอย่างแล้ว 🎉</h2><p>ไม่ต้องทำอะไรเพิ่ม ไปพักได้เลย</p>`; return; }
     const late = a.t <= now, upcoming = !late;
@@ -296,12 +323,16 @@
     const p = plan(today()), cur = l.steps || 0;
     $("qStepsNow").textContent = cur ? `· ${fmt(cur)} / ${fmt(p.steps)}` : `· เป้า ${fmt(p.steps)}`;
     const opts = [...new Set([3000, 5000, 7000, p.steps, 12000])].sort((a, b) => a - b);
+    const sh = l.sleepH;
+    $("qSleepNow").textContent = sh != null ? `· ${sh} ชม.${sh >= 7 ? " ✓" : ""}` : "· เป้า 7–8 ชม.";
+    $("qSleep").innerHTML = [5, 6, 6.5, 7, 7.5, 8, 9].map((n) => `<button type="button" class="chip ${sh === n ? "on" : ""}" data-sleep="${n}">${n === 9 ? "9+" : n}</button>`).join("");
     $("qSteps").innerHTML = opts.map((n) => `<button type="button" class="chip ${cur === n ? "on" : ""}" data-steps="${n}">${n === p.steps ? "ครบเป้า " : ""}${fmt(n)}</button>`).join("") + `<button type="button" class="chip" data-steps="custom">อื่นๆ…</button>`;
   }
   document.querySelector(".quick").addEventListener("click", (e) => {
     const w = e.target.closest("[data-w]")?.dataset.w;
     if (w) { qw = Math.round((qw + Number(w)) * 10) / 10; $("qWeight").textContent = qw.toFixed(1); buzz(10); return; }
     if (e.target.id === "qWeightOk") { const l = todayLog(); l.weight = qw; save(); const sw = startW(); celebrate(idx(today()) > 0 && qw < sw ? `บันทึก ${qw.toFixed(1)} กก. ลดไป ${(sw - qw).toFixed(1)} แล้ว` : `บันทึก ${qw.toFixed(1)} กก.`); refresh(); return; }
+    const sl = e.target.closest("[data-sleep]")?.dataset.sleep; if (sl) { setSleep(Number(sl)); return; }
     const s = e.target.closest("[data-steps]")?.dataset.steps; if (!s) return;
     if (s === "custom") { $("f-steps").scrollIntoView({ behavior: "smooth", block: "center" }); $("f-steps").focus(); return; }
     setSteps(Number(s), Number(s) >= plan(today()).steps ? "ครบเป้าวันนี้ 🔥" : null);
@@ -395,6 +426,7 @@
     if (used > 0) {
       const k = iso(today()), l = (S.logs[k] = S.logs[k] || {});
       l.meditateMin = (l.meditateMin || 0) + used;
+      const hr = new Date().getHours(); if (hr < 12) l.medAm = (l.medAm || 0) + used; else if (hr >= 20) l.medNight = (l.medNight || 0) + used;
       if (l.meditateMin >= 15) l.meditate = true;
       save(); refresh();
     }
@@ -773,7 +805,7 @@
   $("aiSave").addEventListener("click", () => { S.ai = { key: $("aiKey").value.trim(), model: $("aiModel").value }; save(); toast(S.ai.key ? "บันทึก API key แล้ว" : "บันทึกแล้ว"); });
   $("aiClear").addEventListener("click", () => { S.ai = { model: $("aiModel").value }; $("aiKey").value = ""; save(); toast("ลบ key แล้ว"); });
   $("exportCsv").addEventListener("click", () => {
-    const head = ["date", "weight", "waist", "neck", "steps", "spend", ...CHECKS.map((c) => c[0]), "note"];
+    const head = ["date", "weight", "waist", "neck", "steps", "sleepH", "bedAt", "meditateMin", "spend", ...CHECKS.map((c) => c[0]), "note"];
     const rows = entries().map((e) => head.map((h) => (h === "note" ? `"${String(e.note || "").replace(/"/g, '""')}"` : e[h] ?? "")).join(","));
     download(`coach365-logs-${iso(today())}.csv`, "﻿" + [head.join(","), ...rows].join("\n"), "text/csv");
   });

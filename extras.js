@@ -199,9 +199,15 @@
     const T = C.plan(t).target;
     if (kcal.length) { const a = kcal.reduce((x, y) => x + y, 0) / kcal.length; lines.push(a >= T.kcalMin && a <= T.kcalMax ? `✅ กินเฉลี่ย ${C.fmt(a)} kcal อยู่ในเป้า (${T.th})` : a < T.kcalMin ? `⚠️ กินเฉลี่ย ${C.fmt(a)} kcal น้อยกว่าเป้า ${C.fmt(T.kcalMin - a)} ช่วง${T.th}ต้องกินให้ถึง ไม่งั้นกล้ามไม่ขึ้น` : `⚠️ กินเฉลี่ย ${C.fmt(a)} kcal เกินเป้า ${C.fmt(a - T.kcalMax)}`); }
     if (spend) lines.push(spend <= T.budget * 7 ? `✅ ค่ากิน ${C.fmt(spend)} บาท อยู่ในงบ` : `⚠️ ค่ากิน ${C.fmt(spend)} บาท เกินงบ ${C.fmt(spend - T.budget * 7)}`);
-    const med = L.reduce((a, l) => a + (l.meditateMin || 0), 0); if (med) lines.push(`🧘 สมาธิรวม ${med} นาที`);
+    const am = L.filter((l) => l.workout || l.walkAm || l.hiit).length;
+    lines.push(am >= 5 ? `✅ ออกกำลังกายตอนเช้า ${am}/7 วัน` : `⚠️ ออกกำลังกายตอนเช้า ${am}/7 วัน วันไม่มีเวทแค่เดิน 20 นาทีก็นับ`);
+    const medDays = L.filter((l) => (l.meditateMin || 0) >= 10).length, med = L.reduce((a, l) => a + (l.meditateMin || 0), 0);
+    lines.push(medDays >= 5 ? `✅ นั่งสมาธิ ${medDays}/7 วัน รวม ${med} นาที` : `⚠️ นั่งสมาธิ ${medDays}/7 วัน เริ่มจาก 5 นาทีตอนเช้าก่อนก็ได้`);
+    const hs = L.map((l) => l.sleepH).filter((v) => v != null);
+    if (hs.length) { const a = hs.reduce((x, y) => x + y, 0) / hs.length; lines.push(a >= 7 ? `✅ นอนเฉลี่ย ${a.toFixed(1)} ชม./คืน` : `⚠️ นอนเฉลี่ย ${a.toFixed(1)} ชม./คืน ต่ำกว่า 7 เข้านอนเร็วขึ้น 30 นาที ช่วยลดหิวและรักษากล้าม`); }
+    else lines.push("😴 ยังไม่ได้บันทึกการนอน ตอนเช้ากดเลือกชั่วโมงในการ์ด \"นอนเมื่อคืน\"");
     const good = lines.filter((x) => x.startsWith("✅")).length;
-    $("weekly").innerHTML = `<h2>โค้ชสรุป 7 วันล่าสุด</h2><ul class="plainlist">${lines.map((x) => `<li>${x}</li>`).join("")}</ul><p class="small" style="margin:0">${good >= 4 ? "สัปดาห์นี้ดีมาก รักษาแบบนี้ไว้ อย่าเพิ่มอะไรใหม่" : good >= 2 ? "ผ่านครึ่ง สัปดาห์หน้าโฟกัสแค่ข้อ ⚠️ อันแรกพอ" : "สัปดาห์นี้หลุด ไม่เป็นไร กฎคือห้ามพลาด 2 สัปดาห์ติด เริ่มใหม่พรุ่งนี้"}</p>`;
+    $("weekly").innerHTML = `<h2>โค้ชสรุป 7 วันล่าสุด</h2><ul class="plainlist">${lines.map((x) => `<li>${x}</li>`).join("")}</ul><p class="small" style="margin:0">${good >= lines.length * 0.7 ? "สัปดาห์นี้ดีมาก รักษาแบบนี้ไว้ อย่าเพิ่มอะไรใหม่" : good >= lines.length * 0.4 ? "ผ่านครึ่ง สัปดาห์หน้าโฟกัสแค่ข้อ ⚠️ อันแรกพอ" : "สัปดาห์นี้หลุด ไม่เป็นไร กฎคือห้ามพลาด 2 สัปดาห์ติด เริ่มใหม่พรุ่งนี้"}</p>`;
   }
 
   // ---------- รูปเทียบก่อน-หลัง ----------
