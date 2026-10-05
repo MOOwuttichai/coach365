@@ -22,6 +22,35 @@ import java.util.Locale;
  * หน้าเว็บส่งแผน 14 วันข้างหน้ามาด้วย ปิดแอปหลายวันวิดเจ็ตก็ยังบอกโปรแกรมของวันนั้นได้
  */
 public class CoachWidget extends AppWidgetProvider {
+    static final String ACT_WATER = "com.oofsss.coach365.WIDGET_WATER";
+    static final String ACT_KITCHEN = "com.oofsss.coach365.WIDGET_KITCHEN";
+
+    /** ปุ่ม +น้ำ / ปิดครัว: เก็บไว้ใน "widgetPending" แอปมารวมเข้าบันทึกตอนเปิดครั้งถัดไป */
+    @Override
+    public void onReceive(Context ctx, Intent intent) {
+        super.onReceive(ctx, intent);
+        String a = intent.getAction();
+        if (!ACT_WATER.equals(a) && !ACT_KITCHEN.equals(a)) return;
+        SharedPreferences sp = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+        Date now = new Date();
+        String today = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now);
+        try {
+            JSONObject q = new JSONObject(sp.getString("widgetPending", "{}"));
+            if (!today.equals(q.optString("date"))) { q = new JSONObject(); q.put("date", today); }
+            if (ACT_WATER.equals(a)) q.put("water", q.optInt("water") + 1);
+            else if (!q.has("kitchen")) q.put("kitchen", new SimpleDateFormat("HH:mm", Locale.US).format(now));
+            sp.edit().putString("widgetPending", q.toString()).apply();
+        } catch (Exception e) {
+            return;
+        }
+        refreshAll(ctx);
+    }
+
+    private static PendingIntent action(Context ctx, String act, int code) {
+        Intent i = new Intent(ctx, CoachWidget.class);
+        i.setAction(act);
+        return PendingIntent.getBroadcast(ctx, code, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
 
     @Override
     public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
@@ -54,6 +83,8 @@ public class CoachWidget extends AppWidgetProvider {
         v.setOnClickPendingIntent(R.id.cw_root, open(ctx, "today", 1));
         v.setOnClickPendingIntent(R.id.cw_act, open(ctx, "train", 2));
         v.setOnClickPendingIntent(R.id.cw_stats, open(ctx, "food", 3));
+        v.setOnClickPendingIntent(R.id.cw_water, action(ctx, ACT_WATER, 4));
+        v.setOnClickPendingIntent(R.id.cw_kitchen, action(ctx, ACT_KITCHEN, 5));
 
         Date now = new Date();
         String today = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now);
@@ -79,6 +110,8 @@ public class CoachWidget extends AppWidgetProvider {
             v.setTextViewText(R.id.cw_stats, "");
             v.setTextViewText(R.id.cw_foot, "");
             v.setProgressBar(R.id.cw_bar, 1, 0, false);
+            v.setTextViewText(R.id.cw_water, "💧 +1 แก้ว");
+            v.setTextViewText(R.id.cw_kitchen, "🔒 ปิดครัว");
             return v;
         }
 
@@ -111,6 +144,16 @@ public class CoachWidget extends AppWidgetProvider {
                 + " ก.   👣 " + n(steps) + "/" + n(day.optInt("steps")));
 
         v.setProgressBar(R.id.cw_bar, Math.max(1, count), done, false);
+
+        // รวมปุ่มที่กดบนวิดเจ็ตแต่แอปยังไม่ได้รับ
+        JSONObject q = null;
+        try { q = new JSONObject(sp.getString("widgetPending", "{}")); } catch (Exception e) { q = new JSONObject(); }
+        boolean qToday = today.equals(q.optString("date"));
+        int water = (fresh ? snap.optInt("water") : 0) + (qToday ? q.optInt("water") : 0);
+        int wgoal = snap.optInt("wgoal", 8);
+        boolean kitchen = (fresh && snap.optBoolean("kitchen")) || (qToday && q.has("kitchen"));
+        v.setTextViewText(R.id.cw_water, "💧 +1 แก้ว  " + water + "/" + wgoal);
+        v.setTextViewText(R.id.cw_kitchen, kitchen ? "🔒 ปิดครัวแล้ว" : "🔒 ปิดครัว");
         String w = snap.isNull("weight") ? "" : String.format(Locale.US, "%.1f กก. · ", snap.optDouble("weight"));
         v.setTextViewText(R.id.cw_foot, (count > 0 ? "เสร็จ " + done + "/" + count + " · " : "") + w + "อัปเดต " + (fresh ? snap.optString("updated") : "เมื่อวาน"));
         return v;

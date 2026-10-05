@@ -262,6 +262,12 @@
     } finally { btn.disabled = false; btn.textContent = "ให้ AI ประเมินอีกครั้ง"; }
   }
   $("aiBtn").addEventListener("click", aiEstimate);
+  $("scanBtn").addEventListener("click", async () => {
+    try {
+      const { openBarcode } = await import("./barcode.js");
+      openBarcode({ onAdd: (items, src) => { C.addMeal(items, src); C.celebrate(`บันทึก ${items[0].th} แล้ว`); render(); }, onPhoto: () => $("photoIn").click() });
+    } catch (e) { C.toast("เปิดสแกนบาร์โค้ดไม่ได้ ตรวจอินเทอร์เน็ต"); }
+  });
 
   $("foodDate").value = C.iso(C.today());
   renderPlan();

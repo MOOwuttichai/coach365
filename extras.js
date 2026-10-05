@@ -36,13 +36,21 @@
 
   // ---------- น้ำ ----------
   function renderWater() {
-    const l = C.S.logs[C.iso(C.today())] || {}, n = l.water || 0;
-    $("water").innerHTML = `<span class="eyebrow">น้ำวันนี้ <span class="num">${n}/8 แก้ว</span></span><div class="cups">${Array.from({ length: 8 }, (_, i) => `<button type="button" class="cup ${i < n ? "on" : ""}" data-cup="${i + 1}" aria-label="แก้วที่ ${i + 1}">💧</button>`).join("")}</div>`;
+    const l = C.S.logs[C.iso(C.today())] || {}, n = l.water || 0, g = C.waterGoal();
+    $("water").innerHTML = `<div class="row between"><span class="eyebrow">น้ำวันนี้ <span class="num">${n}/${g} แก้ว · ${((n * 250) / 1000).toFixed(1)}/${((g * 250) / 1000).toFixed(1)} ลิตร</span></span><span class="row" style="gap:6px"><button type="button" class="btn ghost small" data-cupadd="-1" aria-label="ลบ 1 แก้ว">−</button><button type="button" class="btn small" data-cupadd="1">+1 แก้ว</button><button type="button" class="btn ghost small" data-cupadd="2">+ขวด 500</button></span></div>`
+      + `<div class="cups">${Array.from({ length: Math.max(g, n) }, (_, i) => `<button type="button" class="cup ${i < n ? "on" : ""}" data-cup="${i + 1}" aria-label="แก้วที่ ${i + 1}">💧</button>`).join("")}</div>`
+      + `<div class="small muted">ตื่นมา 2 แก้ว · ลุกเดินทุกชั่วโมงดื่ม 1 แก้ว · ก่อนมื้อ 1 แก้ว (ช่วยให้อิ่ม) · หยุดดื่มเยอะหลัง 21:00 จะได้ไม่ตื่นกลางคืน</div>`;
+  }
+  function setWater(n) {
+    const l = (C.S.logs[C.iso(C.today())] = C.S.logs[C.iso(C.today())] || {}), g = C.waterGoal(), was = l.water || 0;
+    l.water = Math.max(0, Math.min(24, n)); C.save(); renderWater(); C.pushWidget?.();
+    if (was < g && l.water >= g) C.celebrate(`น้ำครบ ${g} แก้ว 💧`);
   }
   $("water").addEventListener("click", (e) => {
+    const add = e.target.closest("[data-cupadd]"); if (add) { setWater((C.S.logs[C.iso(C.today())]?.water || 0) + Number(add.dataset.cupadd)); return; }
     const c = e.target.closest("[data-cup]"); if (!c) return;
-    const l = (C.S.logs[C.iso(C.today())] = C.S.logs[C.iso(C.today())] || {}), n = Number(c.dataset.cup);
-    l.water = l.water === n ? n - 1 : n; C.save(); renderWater(); if (l.water === 8) C.celebrate("น้ำครบ 8 แก้ว 💧");
+    const n = Number(c.dataset.cup), cur = C.S.logs[C.iso(C.today())]?.water || 0;
+    setWater(cur === n ? n - 1 : n);
   });
 
   // ---------- ปฏิทินความสม่ำเสมอ 8 สัปดาห์ ----------
@@ -199,6 +207,8 @@
     const T = C.plan(t).target;
     if (kcal.length) { const a = kcal.reduce((x, y) => x + y, 0) / kcal.length; lines.push(a >= T.kcalMin && a <= T.kcalMax ? `✅ กินเฉลี่ย ${C.fmt(a)} kcal อยู่ในเป้า (${T.th})` : a < T.kcalMin ? `⚠️ กินเฉลี่ย ${C.fmt(a)} kcal น้อยกว่าเป้า ${C.fmt(T.kcalMin - a)} ช่วง${T.th}ต้องกินให้ถึง ไม่งั้นกล้ามไม่ขึ้น` : `⚠️ กินเฉลี่ย ${C.fmt(a)} kcal เกินเป้า ${C.fmt(a - T.kcalMax)}`); }
     if (spend) lines.push(spend <= T.budget * 7 ? `✅ ค่ากิน ${C.fmt(spend)} บาท อยู่ในงบ` : `⚠️ ค่ากิน ${C.fmt(spend)} บาท เกินงบ ${C.fmt(spend - T.budget * 7)}`);
+    const wg = C.waterGoal(), wd = L.filter((l) => (l.water || 0) >= wg).length, wl = L.filter((l) => l.water).map((l) => l.water);
+    lines.push(wd >= 5 ? `✅ ดื่มน้ำครบ ${wd}/7 วัน` : `⚠️ ดื่มน้ำครบแค่ ${wd}/7 วัน${wl.length ? ` เฉลี่ย ${(wl.reduce((a, b) => a + b, 0) / wl.length).toFixed(0)}/${wg} แก้ว` : ""} พกขวด 1 ลิตรไปทำงาน`);
     const am = L.filter((l) => l.workout || l.walkAm || l.hiit).length;
     lines.push(am >= 5 ? `✅ ออกกำลังกายตอนเช้า ${am}/7 วัน` : `⚠️ ออกกำลังกายตอนเช้า ${am}/7 วัน วันไม่มีเวทแค่เดิน 20 นาทีก็นับ`);
     const medDays = L.filter((l) => (l.meditateMin || 0) >= 10).length, med = L.reduce((a, l) => a + (l.meditateMin || 0), 0);

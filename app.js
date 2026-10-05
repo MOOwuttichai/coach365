@@ -24,15 +24,28 @@
   // สัปดาห์พักไดเอท (นับจาก 0): กินระดับรักษาน้ำหนัก 1 สัปดาห์ท้ายเดือน 3, 6, 9 ช่วยให้ลดต่อได้ทั้งปีโดยไม่พัง
   const DIET_BREAKS = [12, 25, 38];
   const KEY = "coach365";
-  const CHECKS = [["if", "ปิดครัวตามเวลา (IF)"], ["protein", "โปรตีนถึงเป้า"], ["workout", "ออกกำลังกายตามแผน"], ["posture", "จัดบุคลิก 10 นาที"], ["meditate", "นั่งสมาธิ เช้า + ก่อนนอน"], ["rest", "พักผ่อนครบ 3 ชม."], ["room", "เก็บห้อง 10 นาที"], ["sleep", "นอนก่อน 23:30"]];
+  const CHECKS = [["if", "ปิดครัวตามเวลา (IF)"], ["protein", "โปรตีนถึงเป้า"], ["workout", "ออกกำลังกายตอนเช้า"], ["posture", "จัดบุคลิก 10 นาที"], ["meditate", "นั่งสมาธิ เช้า + ก่อนนอน"], ["rest", "พักผ่อนครบ 3 ชม."], ["room", "เก็บห้อง 10 นาที"], ["sleep", "นอนก่อน 23:15"]];
 
-  // rest: true = นับเป็นเวลาพักผ่อน (รวม 3 ชม./วัน)
+  // ตารางตามชีวิตจริง: งาน 09:00–18:00 บ้านห่างที่ทำงาน 15 นาที ถึงบ้าน 22:00 นอน 23:00
+  // วันทำงาน ตื่น 06:30 → สมาธิ → บุคลิก → ออกกำลังกาย 40 นาที → อาบน้ำ → พัก 45 นาที → ออก 08:45
+  // เสาร์–อาทิตย์ ตื่น 07:30 (สายกว่า 1 ชม. นาฬิกาชีวิตไม่เพี้ยน)
+  const MORNING = { WD: { wake: "06:30", med: "06:35", post: "06:45", train: "06:55" }, WE: { wake: "07:30", med: "07:35", post: "07:45", train: "07:55" } };
+  const morningOf = (d) => MORNING[d.getDay() === 0 || d.getDay() === 6 ? "WE" : "WD"];
+  const BED = "23:00";
+  // rest: นาที = นับเป็นเวลาพักผ่อน · days: daily / weekday / WE (ส.–อา.) / SA / SU / M1
   const REMINDERS = [
-    { id: "wake", time: "07:00", days: "daily", msg: "ตื่น! เข้าห้องน้ำ → ชั่งน้ำหนัก → ดื่มน้ำ 500 มล." },
-    { id: "meditate", time: "07:05", days: "daily", msg: "นั่งสมาธิ 10 นาที (เปิดตัวจับเวลาในแอป)" },
-    { id: "posture", time: "07:15", days: "daily", msg: "จัดบุคลิก 10 นาที (ท่าในแท็บเวท)" },
-    { id: "train", time: "07:25", days: "daily", msg: "ได้เวลาออกกำลังกายตอนเช้า เปิดแอปดูว่าวันนี้เวทหรือเดิน" },
-    { id: "move", time: "10:00,11:00,14:00,15:00,16:30,17:00", days: "weekday", msg: "ลุกเดิน 3 นาที ยืดอก เก็บคาง" },
+    { id: "wake", time: "06:30", days: "weekday", msg: "ตื่น! ดื่มน้ำ 500 มล. → เข้าห้องน้ำ → ชั่งน้ำหนัก" },
+    { id: "wakeWE", time: "07:30", days: "WE", msg: "ตื่น! ดื่มน้ำ 500 มล. → เข้าห้องน้ำ → ชั่งน้ำหนัก" },
+    { id: "meditate", time: "06:35", days: "weekday", msg: "นั่งสมาธิ 10 นาที (เปิดตัวจับเวลาในแอป)" },
+    { id: "meditateWE", time: "07:35", days: "WE", msg: "นั่งสมาธิ 10 นาที (เปิดตัวจับเวลาในแอป)" },
+    { id: "posture", time: "06:45", days: "weekday", msg: "จัดบุคลิก 10 นาที (ท่าในแท็บเวท)" },
+    { id: "postureWE", time: "07:45", days: "WE", msg: "จัดบุคลิก 10 นาที (ท่าในแท็บเวท)" },
+    { id: "train", time: "06:55", days: "weekday", msg: "ออกกำลังกาย 40 นาที: วอร์ม 5 นาที แล้วเวท/เดินตามแอป" },
+    { id: "trainWE", time: "07:55", days: "WE", msg: "ออกกำลังกายตอนเช้า: เดินยาว หรือเวทถ้ามีในโปรแกรม" },
+    { id: "shower", time: "07:35", days: "weekday", msg: "อาบน้ำ แต่งตัว เตรียมกระเป๋า + ขวดน้ำ 1 ลิตร" },
+    { id: "restAm", time: "08:00", days: "weekday", msg: "พักก่อนไปทำงาน 45 นาที นั่งสบายๆ กาแฟดำ/ชาไม่หวานได้ ไม่ต้องรีบ", rest: 45 },
+    { id: "leave", time: "08:45", days: "weekday", msg: "ออกจากบ้าน ถึงที่ทำงานก่อน 9 โมง" },
+    { id: "move", time: "10:00,11:00,14:00,15:00,16:30,17:00", days: "weekday", msg: "ลุกเดิน 3 นาที + ดื่มน้ำ 1 แก้ว ยืดอก เก็บคาง" },
     { id: "meal1", time: "12:00", days: "daily", msg: "มื้อแรก: โปรตีนก่อน ถ่ายรูปบันทึกในแอป" },
     { id: "rest1", time: "12:30", days: "daily", msg: "พัก 30 นาที ออกจากจอ หลับตา/เดินเบาๆ", rest: 30 },
     { id: "snack", time: "16:00", days: "daily", msg: "มื้อว่างโปรตีน: ไข่ต้ม + นมถั่วเหลืองไม่หวาน" },
@@ -40,23 +53,26 @@
     { id: "walk", time: "18:45", days: "daily", msg: "เดิน 1 ชม. ให้ครบก้าววันนี้" },
     { id: "rest2", time: "20:00", days: "daily", msg: "เวลาพักผ่อนของตัวเอง 1 ชม. 45 นาที ไม่ทำงาน", rest: 105 },
     { id: "log", time: "22:00", days: "daily", msg: "ถึงบ้าน: บันทึกวันนี้ในแอป + เก็บห้อง 10 นาที" },
-    { id: "rest3", time: "22:15", days: "daily", msg: "พักผ่อน 45 นาที อาบน้ำ ฟังเพลง อ่านหนังสือ", rest: 45 },
-    { id: "meditate2", time: "23:00", days: "daily", msg: "สมาธิก่อนนอน 5 นาที + จด 3 บรรทัด แล้ววางมือถือ" },
-    { id: "sleep", time: "23:15", days: "daily", msg: "ได้เวลานอน" },
-    { id: "side", time: "09:00", days: "SA", msg: "งานเสริม 3 ชั่วโมง: หาลูกค้า / ทำงาน / พอร์ต" },
-    { id: "weigh", time: "08:00", days: "SU", msg: "ชั่งน้ำหนัก วัดรอบเอว (อาทิตย์แรกของเดือน: วัดรอบคอ + ถ่ายรูป)" },
+    { id: "rest3", time: "22:15", days: "daily", msg: "พักผ่อน 30 นาที อาบน้ำ หรี่ไฟ ไม่เล่นมือถือบนเตียง", rest: 30 },
+    { id: "meditate2", time: "22:45", days: "daily", msg: "สมาธิก่อนนอน 5 นาที + จด 3 บรรทัด แล้ววางมือถือ" },
+    { id: "sleep", time: "23:00", days: "daily", msg: "ได้เวลานอน (ตื่น 06:30 = นอน 7.5 ชม.)" },
+    { id: "side", time: "09:30", days: "SA", msg: "งานเสริม 3 ชั่วโมง: หาลูกค้า / ทำงาน / พอร์ต" },
+    { id: "weigh", time: "07:30", days: "SU", msg: "ชั่งน้ำหนัก วัดรอบเอว (อาทิตย์แรกของเดือน: วัดรอบคอ + ถ่ายรูป)" },
     { id: "prep", time: "14:00", days: "SU", msg: "Meal prep: อกไก่ + ไข่ต้มทั้งสัปดาห์" },
+    { id: "weekly", time: "20:30", days: "SU", msg: "โค้ชสรุปสัปดาห์พร้อมแล้ว เปิดแอปดู แล้วเลือกโฟกัส 1 ข้อสำหรับสัปดาห์หน้า" },
     { id: "money", time: "09:00", days: "M1", msg: "โอนเงินออม + ลงทุน แล้วบันทึกในแอป" },
   ];
 
   // ---------- state ----------
-  // profile: ส่วนสูง/อายุใช้คำนวณแคลอรี่และไขมัน · goalW 60 ตามที่ตั้งไว้ แอปจะเทียบกับน้ำหนักที่ไขมันถึงเป้าจริง
+  // profile: ส่วนสูง/อายุใช้คำนวณแคลอรี่และไขมัน · goalW 75 เป็นค่าเริ่ม หลังวัดเอว/คอ แอปจะบอกน้ำหนักที่ไขมันถึงเป้าจริง · startW ว่าง = ใช้ที่ชั่งวันเริ่ม
   // kcalAdj = ปรับแคลอรี่จากผลจริงรายสัปดาห์ · cutExtend = สัปดาห์ที่ลดต่อเพราะยังไม่ลีนพอก่อนเริ่มปี 2
   const def = () => ({ logs: {}, money: [], passiveMonthly: 0, rem: Object.fromEntries(REMINDERS.map((r) => [r.id, true])), fired: {},
-    profile: { height: null, age: null, goalW: 60, goalBf: 12, startW: null }, kcalAdj: 0, cutExtend: 0 });
+    profile: { height: 168, age: 23, goalW: 75, goalBf: 12, startW: null }, kcalAdj: 0, cutExtend: 0 });
   let S = def();
   function normalize() {
-    S.profile = Object.assign(def().profile, S.profile);
+    // ช่องที่ยังว่างใช้ค่าตัวจริง (อายุ 23 สูง 168 หนัก 110) ค่าที่กรอกเองไม่ทับ
+    const P0 = def().profile; S.profile = Object.assign({}, P0, S.profile); for (const k in P0) if (S.profile[k] == null) S.profile[k] = P0[k];
+    if (!S.planVer3) { if (S.profile.goalW === 60) S.profile.goalW = P0.goalW; S.planVer3 = true; } // 60 กก. ต่ำเกินไปสำหรับ 168 ซม. ที่มีกล้ามเยอะ
     // ย้ายจากแผน 3 ปีเดิม (เริ่ม 28 ก.ย.): เลขสัปดาห์เลื่อน รีเซ็ตรอบ deload
     if (S.planVer !== 2) { delete S.deloadAnchor; delete S.stallDismissed; S.planVer = 2; }
   }
@@ -88,9 +104,11 @@
     if (cache.sw != null) return cache.sw;
     const s = iso(START), ks = Object.keys(S.logs).filter((k) => S.logs[k].weight != null).sort();
     const k = ks.filter((x) => x <= s).pop() ?? ks.find((x) => x > s);
-    return (cache.sw = Number(S.profile.startW) || S.logs[k]?.weight || 100);
+    return (cache.sw = Number(S.profile.startW) || S.logs[k]?.weight || 110);
   }
-  const goalW = () => Number(S.profile.goalW) || 60;
+  const goalW = () => Number(S.profile.goalW) || 75;
+  // น้ำ: 32 มล./กก. นับเป็นแก้ว 250 มล. (110 กก. ≈ 14 แก้ว 3.5 ลิตร) ลดตามน้ำหนัก ไม่ต่ำกว่า 8 ไม่เกิน 16
+  const waterGoal = () => Math.min(16, Math.max(8, Math.round(((trendWeight() ?? startW()) * 32) / 250)));
   // เฉลี่ยน้ำหนัก 7 วันล่าสุด (ตัดผลน้ำ/เกลือรายวัน)
   function trendWeight() {
     const t = today(), ws = [];
@@ -213,7 +231,7 @@
   const yLog = () => S.logs[iso(new Date(today() - DAY))] || {};
   function goBed() {
     const late = new Date().getHours() < 5, k = iso(late ? new Date(today() - DAY) : today()), l = (S.logs[k] = S.logs[k] || {});
-    l.bedAt = hmNow(); if (!late && l.bedAt <= "23:30") l.sleep = true;
+    l.bedAt = hmNow(); if (!late && l.bedAt <= "23:15") l.sleep = true;
     save(); celebrate(l.sleep ? "ฝันดี พรุ่งนี้เจอกัน 😴" : "ดึกไปหน่อย คืนพรุ่งนี้เข้านอนเร็วขึ้นนะ 😴"); refresh();
   }
   function sleepEst() {
@@ -228,15 +246,16 @@
   function actions() {
     const l = todayLog(), p = plan(today()), wd = today().getDay(), meals = l.food?.length || 0, target = p.steps;
     const A = [];
-    const est = sleepEst(), bed = yLog().bedAt;
-    A.push({ t: "07:00", title: "ตื่นแล้ว ☀️ เมื่อคืนนอนกี่ชั่วโมง", sub: est ? `เข้านอน ${bed} ตื่นตอนนี้ ≈ ${est} ชม. · เป้า 7–8 ชม.` : "เป้า 7–8 ชม. ต่อคืน กดเลือกชั่วโมงด้านล่าง", done: l.sleepH != null,
+    const est = sleepEst(), bed = yLog().bedAt, M = morningOf(today()), workday = wd >= 1 && wd <= 5;
+    A.push({ t: M.wake, title: "ตื่นแล้ว ☀️ เมื่อคืนนอนกี่ชั่วโมง", sub: est ? `เข้านอน ${bed} ตื่นตอนนี้ ≈ ${est} ชม. · เป้า 7–8 ชม.` : "เป้า 7–8 ชม. ต่อคืน กดเลือกชั่วโมงด้านล่าง", done: l.sleepH != null,
       btn: est ? `ใช่ ${est} ชม. ✓` : "ใส่ชั่วโมง", act: est ? () => setSleep(est) : () => $("qSleep").scrollIntoView({ behavior: "smooth", block: "center" }), alt: est ? "แก้เอง" : null, altAct: () => $("qSleep").scrollIntoView({ behavior: "smooth", block: "center" }) });
     const tired = l.sleepH != null && l.sleepH < 6 ? " · นอนน้อย วันนี้ลดท่าละ 1 เซ็ต ไม่ต้องฝืน" : "";
-    A.push({ t: "07:05", title: "นั่งสมาธิเช้า 10 นาที", sub: "หายใจเข้า 4 ออก 6 แค่นั่งเฉยๆ ใจนิ่งทั้งวัน", done: (l.medAm ?? l.meditateMin ?? 0) >= 10, btn: "เริ่มเลย", act: () => startMed(10) });
-    A.push({ t: "07:15", title: "จัดบุคลิก 10 นาที", sub: "3 ท่า แก้คอยื่น ไหล่ห่อ", done: !!l.posture, btn: "▶ เริ่มเลย", act: () => startWorkout("P"), alt: "ทำแล้ว", altAct: () => setFlag("posture", "บุคลิกดีขึ้นทุกวัน 👍") });
-    if (p.session) A.push({ t: "07:25", title: (p.deload ? "🔋 Deload: " : "เวท ") + SESSIONS[p.session].name, sub: l.wStart?.[p.session] ? "ค้างไว้อยู่ กดเล่นต่อได้เลย" : p.deload ? "สัปดาห์พักฟื้น น้ำหนัก 60% 2 เซ็ต เสร็จใน 20 นาที" : "30 นาที 5 ท่า แอปจับเวลาพักและบอกน้ำหนักให้" + tired, done: !!l.workout, btn: l.wStart?.[p.session] ? "▶ เล่นต่อ" : "▶ เริ่มเลย", act: () => startWorkout(p.session), alt: "ดูท่าก่อน", altAct: () => { $("sessionPick").value = ""; show("train"); } });
-    else if (wd >= 2 && wd <= 4) A.push({ t: "07:25", title: p.month >= 7 ? "HIIT 10 นาที" : "เดิน 20 นาที (หรือ HIIT 10 นาที)", sub: (p.month >= 7 ? "แรงกระแทกต่ำ ไม่ต้องกระโดด แอปบอกท่าและจับเวลาให้" : "วันพักเวท เดินเช้า 20 นาที อยากลอง HIIT ก็ได้") + (tired ? " · นอนน้อย เดินแทน HIIT" : ""), done: !!l.walkAm || !!l.hiit, btn: p.month >= 7 ? "▶ เริ่ม HIIT" : "เดินแล้ว", act: p.month >= 7 ? startHiit : () => setFlag("walkAm", "เยี่ยม 🚶"), alt: p.month >= 7 ? "เดินแทน" : "▶ HIIT", altAct: p.month >= 7 ? () => setFlag("walkAm", "เยี่ยม 🚶") : startHiit });
-    else A.push({ t: "07:25", title: p.activity, sub: "วันพักเวท ออกไปเดินตอนเช้า แดดเช้าช่วยให้คืนนี้หลับง่าย", done: !!l.walkAm, btn: "เดินแล้ว", act: () => setFlag("walkAm", "เยี่ยม 🚶") });
+    A.push({ t: M.med, title: "นั่งสมาธิเช้า 10 นาที", sub: "หายใจเข้า 4 ออก 6 แค่นั่งเฉยๆ ใจนิ่งทั้งวัน", done: (l.medAm ?? l.meditateMin ?? 0) >= 10, btn: "เริ่มเลย", act: () => startMed(10) });
+    A.push({ t: M.post, title: "จัดบุคลิก 10 นาที", sub: "3 ท่า แก้คอยื่น ไหล่ห่อ", done: !!l.posture, btn: "▶ เริ่มเลย", act: () => startWorkout("P"), alt: "ทำแล้ว", altAct: () => setFlag("posture", "บุคลิกดีขึ้นทุกวัน 👍") });
+    if (p.session) A.push({ t: M.train, title: (p.deload ? "🔋 Deload: " : "เวท ") + SESSIONS[p.session].name, sub: l.wStart?.[p.session] ? "ค้างไว้อยู่ กดเล่นต่อได้เลย" : p.deload ? "สัปดาห์พักฟื้น น้ำหนัก 60% 2 เซ็ต เสร็จใน 20 นาที" : "วอร์ม 5 นาที + 5 ท่า 30–35 นาที แอปจับเวลาพักและบอกน้ำหนักให้" + tired, done: !!l.workout, btn: l.wStart?.[p.session] ? "▶ เล่นต่อ" : "▶ เริ่มเลย", act: () => startWorkout(p.session), alt: "ดูท่าก่อน", altAct: () => { $("sessionPick").value = ""; show("train"); } });
+    else if (wd >= 2 && wd <= 4) A.push({ t: M.train, title: p.month >= 7 ? "HIIT 10 นาที" : "เดิน 20 นาที (หรือ HIIT 10 นาที)", sub: (p.month >= 7 ? "แรงกระแทกต่ำ ไม่ต้องกระโดด แอปบอกท่าและจับเวลาให้" : "วันพักเวท เดินเช้า 20 นาที อยากลอง HIIT ก็ได้") + (tired ? " · นอนน้อย เดินแทน HIIT" : ""), done: !!l.walkAm || !!l.hiit, btn: p.month >= 7 ? "▶ เริ่ม HIIT" : "เดินแล้ว", act: p.month >= 7 ? startHiit : () => setFlag("walkAm", "เยี่ยม 🚶"), alt: p.month >= 7 ? "เดินแทน" : "▶ HIIT", altAct: p.month >= 7 ? () => setFlag("walkAm", "เยี่ยม 🚶") : startHiit });
+    else A.push({ t: M.train, title: p.activity, sub: "วันพักเวท ออกไปเดินตอนเช้า แดดเช้าช่วยให้คืนนี้หลับง่าย", done: !!l.walkAm, btn: "เดินแล้ว", act: () => setFlag("walkAm", "เยี่ยม 🚶") });
+    if (workday) A.push({ t: "08:00", title: "พักก่อนไปทำงาน 45 นาที", sub: "อาบน้ำแต่งตัวเสร็จแล้ว นั่งพักสบายๆ ไม่ต้องรีบ ออกจากบ้าน 08:45", done: !!l.restAm, btn: "พักแล้ว ☕", act: () => setFlag("restAm", "พร้อมไปทำงานแล้ว 💼") });
     const meal = (t, slot, title, need) => {
       const m = plannedMeal(slot);
       A.push({ t, title, sub: `ตามแผน: ${m.th} (${m.kcal} kcal)`, done: meals >= need, btn: "กินตามแผน ✓", act: () => { addMeal([m], "ตามแผน"); celebrate(`บันทึก ${m.th} แล้ว`); }, alt: "ถ่ายรูป", altAct: () => { show("food"); $("photoIn").click(); } });
@@ -249,14 +268,16 @@
     A.push({ t: "22:00", title: "เก็บห้อง 10 นาที", sub: "ผ้าแห้งพับเก็บ ของวางที่เดิม", done: !!l.room, btn: "เก็บแล้ว", act: () => setFlag("room", "ห้องสะอาด สมองโล่ง ✨") });
     // วันแรก + ทุกอาทิตย์: วัดตัว (อาทิตย์แรกของเดือนวัดรอบคอด้วย ใช้คำนวณไขมัน)
     const full = p.day === 1 || wd === 0, neck = p.day === 1 || (wd === 0 && today().getDate() <= 7);
-    if (full || l.weight == null) A.push({ t: p.day === 1 ? "07:00" : wd === 0 ? "08:00" : "22:05",
+    if (full || l.weight == null) A.push({ t: p.day === 1 || wd === 0 ? M.wake : "22:05",
       title: neck ? "ชั่งน้ำหนัก + วัดรอบเอว + รอบคอ" : full ? "ชั่งน้ำหนัก + วัดรอบเอว" : "ชั่งน้ำหนัก",
       sub: full ? `หลังเข้าห้องน้ำ ก่อนกินดื่ม · เอววัดระดับสะดือ หายใจออกปกติ ไม่แขม่ว${neck ? " · คอวัดใต้ลูกกระเดือก" : ""}` : "ตอนเช้าก่อนกินแม่นสุด แต่ตอนไหนก็ได้ดีกว่าไม่ชั่ง",
       done: l.weight != null && (!full || l.waist != null) && (!neck || l.neck != null), btn: "ใส่ตัวเลข",
       act: () => (full ? $("logForm") : $("qWeight")).scrollIntoView({ behavior: "smooth", block: "center" }) });
-    A.push({ t: "23:00", title: "สมาธิก่อนนอน 5 นาที", sub: "แล้ววางมือถือไกลเตียง", done: (l.medNight ?? ((l.meditateMin || 0) >= 15 ? 5 : 0)) >= 5, btn: "เริ่มเลย", act: () => startMed(5) });
+    A.push({ t: "22:45", title: "สมาธิก่อนนอน 5 นาที", sub: "แล้ววางมือถือไกลเตียง", done: (l.medNight ?? ((l.meditateMin || 0) >= 15 ? 5 : 0)) >= 5, btn: "เริ่มเลย", act: () => startMed(5) });
     const avg = sleepAvg();
-    A.push({ t: "23:15", title: "นอน (ตื่น 07:00 = 7 ชม. 45 นาที)", sub: avg != null && avg < 7 ? `3 คืนล่าสุดนอนเฉลี่ย ${avg.toFixed(1)} ชม. คืนนี้เข้านอนเร็วขึ้นได้ยิ่งดี` : "ห้องมืด เย็น มือถือไกลเตียง นอนพอ = หิวน้อย กล้ามไม่หาย",
+    if (!FSP() && (!S.lastBackup || (today() - parse(S.lastBackup)) / DAY >= 7)) A.push({ t: "22:10", title: "สำรองข้อมูล (สัปดาห์ละครั้ง)", sub: "กดแล้วเก็บไฟล์ไว้ใน Drive หรือส่งเข้า LINE ตัวเอง กันมือถือหาย", done: false, btn: "ส่งออกเลย", act: () => $("exportJson").click() });
+    const nextWake = morningOf(new Date(today().getTime() + DAY)).wake;
+    A.push({ t: BED, title: `นอน (ตื่น ${nextWake} = ${nextWake === "06:30" ? "7.5" : "8.5"} ชม.)`, sub: avg != null && avg < 7 ? `3 คืนล่าสุดนอนเฉลี่ย ${avg.toFixed(1)} ชม. คืนนี้เข้านอนเร็วขึ้นได้ยิ่งดี` : "ห้องมืด เย็น มือถือไกลเตียง นอนพอ = หิวน้อย กล้ามไม่หาย",
       done: !!l.sleep || !!l.bedAt, btn: "นอนแล้ว 😴", act: goBed });
     return A.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
   }
@@ -280,14 +301,14 @@
         ["ตั้งแจ้งเตือน", () => show("settings")],
       ].filter(Boolean).slice(0, 2);
       h.innerHTML = `<div class="eyebrow">วันซ้อมมือ · เริ่มจริง${i === -1 ? "พรุ่งนี้" : ` อีก ${-i} วัน`} (${START_TH})</div><h2>ลองกดทุกอย่างได้เลย</h2>`
-        + `<p>วันนี้ไม่นับในแผน ลองบันทึกอาหาร ชั่งน้ำหนัก เล่นเวทเบาๆ ให้คุ้นมือ น้ำหนักที่ชั่งวันนี้จะใช้เป็นน้ำหนักเริ่มต้น${i === -1 ? " · พรุ่งนี้ 07:00 ชั่ง + วัดเอว/คอ ก่อนกินดื่ม คืนนี้นอนก่อน 23:15" : ""}</p>`
+        + `<p>วันนี้ไม่นับในแผน ลองบันทึกอาหาร ชั่งน้ำหนัก เล่นเวทเบาๆ ให้คุ้นมือ น้ำหนักที่ชั่งวันนี้จะใช้เป็นน้ำหนักเริ่มต้น${i === -1 ? ` · พรุ่งนี้ ${morningOf(new Date(today().getTime() + DAY)).wake} ชั่ง + วัดเอว/คอ ก่อนกินดื่ม คืนนี้นอน ${BED}` : ""}</p>`
         + `<div class="row">${steps.map(([t], k) => `<button class="btn ${k ? "ghost" : ""}" type="button" data-hero="${k}">${t}</button>`).join("")}</div>`;
       heroActs = steps.map((s) => s[1]);
       return;
     }
     // หลังเที่ยงคืน ยังไม่ได้กดนอน: ชวนนอนก่อน (นับเป็นคืนของเมื่อวาน)
     if (now < "05:00" && !yLog().bedAt) {
-      h.innerHTML = `<div class="eyebrow">${now} · เลยเวลานอนแล้ว</div><h2>วางมือถือ แล้วนอนเลย 😴</h2><p>ตื่น 07:00 ยังได้นอนอีก ${Math.max(0, (420 - (Number(now.slice(0, 2)) * 60 + Number(now.slice(3)))) / 60).toFixed(1)} ชม. นอนน้อยทำให้หิวง่ายและแรงตก</p><div class="row"><button class="btn" type="button" data-hero="0">นอนแล้ว 😴</button></div>`;
+      h.innerHTML = `<div class="eyebrow">${now} · เลยเวลานอนแล้ว</div><h2>วางมือถือ แล้วนอนเลย 😴</h2><p>ตื่น ${morningOf(today()).wake} ยังได้นอนอีก ${Math.max(0, ((([h, m]) => h * 60 + m)(morningOf(today()).wake.split(":").map(Number)) - (Number(now.slice(0, 2)) * 60 + Number(now.slice(3)))) / 60).toFixed(1)} ชม. นอนน้อยทำให้หิวง่ายและแรงตก</p><div class="row"><button class="btn" type="button" data-hero="0">นอนแล้ว 😴</button></div>`;
       heroActs = [goBed]; return;
     }
     if (!a) { h.innerHTML = `<div class="eyebrow">วันที่ ${i + 1}</div><h2>วันนี้ครบทุกอย่างแล้ว 🎉</h2><p>ไม่ต้องทำอะไรเพิ่ม ไปพักได้เลย</p>`; return; }
@@ -343,6 +364,19 @@
   // ---------- วิดเจ็ตหน้าจอโฮม (แอป Android) ----------
   // เขียนสรุปวันนี้ + แผน 14 วันข้างหน้าลง Preferences ให้วิดเจ็ตอ่าน (ปิดแอปหลายวันวิดเจ็ตยังบอกโปรแกรมวันนั้นได้)
   let widgetLast = "";
+  // ปุ่มบนวิดเจ็ต (+น้ำ / ปิดครัว) กดได้โดยไม่ต้องเปิดแอป: native เก็บไว้ใน "widgetPending" แอปมารวมให้ตอนเปิด
+  async function applyWidgetPending() {
+    const P = window.Capacitor?.isNativePlatform?.() && window.Capacitor.Plugins?.Preferences; if (!P) return;
+    try {
+      const { value } = await P.get({ key: "widgetPending" }); if (!value) return;
+      await P.remove({ key: "widgetPending" });
+      const q = JSON.parse(value); if (q.date !== iso(today())) return;
+      const l = todayLog(), msg = [];
+      if (q.water) { l.water = (l.water || 0) + q.water; msg.push(`น้ำ +${q.water} แก้ว`); }
+      if (q.kitchen && !l.if) { l.if = true; l.kitchenClosed = q.kitchen; msg.push(`ปิดครัว ${q.kitchen}`); }
+      save(); refresh(); if (msg.length) toast("จากวิดเจ็ต: " + msg.join(" · "));
+    } catch (e) {}
+  }
   function pushWidget() {
     const P = window.Capacitor?.isNativePlatform?.() && window.Capacitor.Plugins?.Preferences; if (!P) return;
     try {
@@ -357,7 +391,7 @@
       }
       // acts: วิดเจ็ตเลือก "ทำอะไรต่อ" ตามเวลาปัจจุบันเอง (อันแรกที่ยังไม่ทำและถึงเวลาแล้ว)
       const snap = { v: 1, date: iso(t), acts: A.map((x) => [x.t, x.title.replace(/<[^>]*>/g, ""), x.done ? 1 : 0]),
-        eaten, prot, steps: l.steps || 0, weight: l.weight ?? lastWeight(), days };
+        eaten, prot, steps: l.steps || 0, weight: l.weight ?? lastWeight(), water: l.water || 0, wgoal: waterGoal(), kitchen: !!l.if, days };
       const json = JSON.stringify(snap); if (json === widgetLast) return; widgetLast = json;
       P.set({ key: "widget", value: JSON.stringify({ ...snap, updated: hmNow() }) }).catch(() => {});
     } catch (e) {}
@@ -377,7 +411,7 @@
   function renderSchedule() {
     const now = new Date(), d = today(), hm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const items = [];
-    REMINDERS.forEach((r) => { if (dueToday(r, d)) r.time.split(",").forEach((t, i) => { if (r.id !== "move" || i === 0) items.push({ t, msg: r.id === "move" ? "ลุกเดิน 3 นาทีทุกชั่วโมง (10:00–17:00)" : r.msg, rest: r.rest }); }); });
+    REMINDERS.forEach((r) => { if (dueToday(r, d)) r.time.split(",").forEach((t, i) => { if (r.id !== "move" || i === 0) items.push({ t, msg: r.id === "move" ? "ลุกเดิน 3 นาที + ดื่มน้ำ 1 แก้ว ทุกชั่วโมง (10:00–17:00)" : r.msg, rest: r.rest }); }); });
     if (d.getDay() >= 1 && d.getDay() <= 5) items.push({ t: "09:00", msg: "ทำงาน (ถึง 18:00)" });
     items.sort((a, b) => (a.t < b.t ? -1 : 1));
     let cur = -1; items.forEach((it, i) => { if (it.t <= hm) cur = i; });
@@ -573,7 +607,7 @@
       const perm = await LN.requestPermissions(); if (perm.display !== "granted") return false;
       const pending = await LN.getPending(); if (pending.notifications?.length) await LN.cancel(pending);
       const list = []; let id = 1;
-      const WD = { SA: [7], SU: [1], weekday: [2, 3, 4, 5, 6] };
+      const WD = { SA: [7], SU: [1], WE: [1, 7], weekday: [2, 3, 4, 5, 6] };
       REMINDERS.forEach((r) => {
         if (S.rem[r.id] === false) return;
         r.time.split(",").forEach((t) => {
@@ -725,7 +759,7 @@
   }
 
   // ---------- reminders ----------
-  const dayText = { daily: "ทุกวัน", weekday: "จ–ศ", SA: "เสาร์", SU: "อาทิตย์", M1: "วันที่ 1 ทุกเดือน" };
+  const dayText = { daily: "ทุกวัน", weekday: "จ–ศ", WE: "ส.–อา.", SA: "เสาร์", SU: "อาทิตย์", M1: "วันที่ 1 ทุกเดือน" };
   function notifSupported() { return "Notification" in window && "serviceWorker" in navigator; }
   function renderSettings() {
     const st = native() ? "แอป Android: แจ้งเตือนตามเวลาจริงแม้ปิดแอป (กดปุ่มด้านล่างถ้ายังไม่เด้ง)" : !notifSupported() ? "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน (iPhone ต้องติดตั้งลงหน้าจอโฮมก่อน)" :
@@ -750,7 +784,7 @@
   }
   function dueToday(r, d) {
     const wd = d.getDay();
-    return r.days === "daily" || (r.days === "weekday" && wd >= 1 && wd <= 5) || (r.days === "SA" && wd === 6) || (r.days === "SU" && wd === 0) || (r.days === "M1" && d.getDate() === 1);
+    return r.days === "daily" || (r.days === "weekday" && wd >= 1 && wd <= 5) || (r.days === "WE" && (wd === 0 || wd === 6)) || (r.days === "SA" && wd === 6) || (r.days === "SU" && wd === 0) || (r.days === "M1" && d.getDate() === 1);
   }
   function tick() {
     if (!notifSupported() || Notification.permission !== "granted") return;
@@ -768,7 +802,7 @@
 
   // ---------- .ics ----------
   function buildICS() {
-    const byday = { daily: "", weekday: ";BYDAY=MO,TU,WE,TH,FR", SA: ";BYDAY=SA", SU: ";BYDAY=SU" };
+    const byday = { daily: "", weekday: ";BYDAY=MO,TU,WE,TH,FR", WE: ";BYDAY=SA,SU", SA: ";BYDAY=SA", SU: ";BYDAY=SU" };
     const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Coach365//TH", "CALSCALE:GREGORIAN", "X-WR-CALNAME:Coach 365", "X-WR-TIMEZONE:Asia/Bangkok",
       "BEGIN:VTIMEZONE", "TZID:Asia/Bangkok", "BEGIN:STANDARD", "DTSTART:19700101T000000", "TZOFFSETFROM:+0700", "TZOFFSETTO:+0700", "TZNAME:ICT", "END:STANDARD", "END:VTIMEZONE"];
     const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
@@ -794,7 +828,27 @@
   $("icsBtn").addEventListener("click", () => { download("coach365-reminders.ics", buildICS(), "text/calendar"); toast("ดาวน์โหลดแล้ว เปิดไฟล์เพื่อเพิ่มลงปฏิทิน"); });
 
   // ---------- backup ----------
-  $("exportJson").addEventListener("click", () => download(`coach365-backup-${iso(today())}.json`, JSON.stringify({ ...S, ai: { model: S.ai?.model } }, null, 1), "application/json"));
+  const backupJson = () => JSON.stringify({ ...S, ai: { model: S.ai?.model } });
+  $("exportJson").addEventListener("click", () => { download(`coach365-backup-${iso(today())}.json`, backupJson(), "application/json"); S.lastBackup = iso(today()); save(); renderBackup(); refresh(); });
+  // สำรองอัตโนมัติ (แอป Android): วันละครั้งลง Documents/Coach365 ไฟล์ละสัปดาห์ (ลบแอปแล้วไฟล์ยังอยู่ กู้คืนด้วยปุ่มนำเข้า)
+  function FSP() { return window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.Filesystem : null; }
+  async function autoBackup() {
+    const FS = FSP(), k = iso(today()); if (!FS || S.lastBackup === k) return;
+    const mon = new Date(today().getTime() - ((today().getDay() + 6) % 7) * DAY), name = `Coach365/coach365-backup-${iso(mon)}`;
+    try {
+      await FS.mkdir({ path: "Coach365", directory: "DOCUMENTS", recursive: true }).catch(() => {});
+      S.lastBackup = k; S.backupErr = null; save();
+      const data = backupJson(), w = (path) => FS.writeFile({ path, data, directory: "DOCUMENTS", encoding: "utf8" });
+      // ไฟล์ของสัปดาห์นี้อาจสร้างโดยแอปก่อนลงใหม่ (เขียนทับไม่ได้) → ใช้ชื่อใหม่
+      await w(name + ".json").catch(() => w(`${name}-${Date.now().toString(36)}.json`));
+    } catch (e) { S.lastBackup = null; S.backupErr = String(e?.message || e).slice(0, 120); save(); }
+    renderBackup();
+  }
+  function renderBackup() {
+    const d = S.lastBackup ? Math.round((today() - parse(S.lastBackup)) / DAY) : null;
+    $("backupState").innerHTML = FSP() ? (S.backupErr ? `⚠️ สำรองอัตโนมัติไม่สำเร็จ (${esc(S.backupErr)}) กดส่งออกเองไปก่อน` : `✅ สำรองอัตโนมัติทุกวันที่ <b>Documents/Coach365</b> ล่าสุด ${S.lastBackup ? S.lastBackup.slice(5) : "–"} · ลงแอปใหม่ กด "นำเข้า" แล้วเลือกไฟล์ล่าสุด`)
+      : d == null || d >= 7 ? `⚠️ ${d == null ? "ยังไม่เคยสำรอง" : `สำรองล่าสุด ${d} วันก่อน`} กด "ส่งออก (JSON)" แล้วเก็บไฟล์ไว้ใน Drive/LINE` : `✅ สำรองล่าสุด ${d === 0 ? "วันนี้" : `${d} วันก่อน`}`;
+  }
 
   // ---------- AI key ----------
   $("aiKey").value = S.ai?.key || "";
@@ -841,10 +895,10 @@
     shownDay = k; ["logDate", "foodDate", "m-date"].forEach((id) => ($(id).value = k));
     renderAll(); window.Food?.render();
   }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) rollover(); });
-  setInterval(() => { rollover(); renderSchedule(); renderHero(); pushWidget(); }, 60000);
-  renderAll();
-  window.Coach = { get S() { return S; }, save, iso, today, toast, fmt, esc, START, weekIdx, addMeal, afterMeal, closeKitchen, plannedMeal, refresh, celebrate, plan, goalAt, PHASES, DIET_BREAKS,
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { rollover(); applyWidgetPending(); } });
+  setInterval(() => { rollover(); renderSchedule(); renderHero(); applyWidgetPending(); pushWidget(); }, 60000);
+  renderAll(); applyWidgetPending(); renderBackup(); autoBackup();
+  window.Coach = { get S() { return S; }, save, iso, today, toast, fmt, esc, START, weekIdx, waterGoal, pushWidget, addMeal, afterMeal, closeKitchen, plannedMeal, refresh, celebrate, plan, goalAt, PHASES, DIET_BREAKS,
     total, y1End, startW, goalW, trendWeight, lastWeight, targetFor, show, renderProfile };
   const fromHash = () => { const h = location.hash.slice(1); if (["today", "food", "train", "money", "settings"].includes(h)) show(h); };
   addEventListener("hashchange", fromHash); addEventListener("DOMContentLoaded", fromHash);

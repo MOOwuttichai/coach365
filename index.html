@@ -107,6 +107,7 @@
       <div id="planToday" class="plantoday"></div>
       <label class="btn big" for="photoIn">📷 ถ่ายรูปอาหาร (ไม่อยู่ในแผน)</label>
       <input type="file" id="photoIn" accept="image/*" capture="environment" hidden>
+      <button class="btn ghost big" id="scanBtn" type="button" style="margin-top:8px">▦ สแกนบาร์โค้ด (ของสำเร็จรูป/เซเว่น)</button>
     </div>
 
     <div class="card" id="draft" hidden>
@@ -239,11 +240,12 @@
     </div>
     <div class="card">
       <h2>สำรองข้อมูล</h2>
-      <p class="small muted">ข้อมูลเก็บในเครื่องนี้เท่านั้น ส่งออกไว้ทุกเดือนกันหาย (รูปอาหารไม่รวมในไฟล์)</p>
+      <p class="small muted">ข้อมูลเก็บในเครื่องนี้เท่านั้น (รูปอาหาร/รูปเทียบไม่รวมในไฟล์)</p>
+      <p class="small" id="backupState"></p>
       <div class="row">
         <button class="btn ghost" id="exportJson" type="button">ส่งออก (JSON)</button>
         <button class="btn ghost" id="exportCsv" type="button">ส่งออกบันทึก (CSV)</button>
-        <label class="btn ghost">นำเข้า<input type="file" id="importJson" accept="application/json" hidden></label>
+        <label class="btn ghost">นำเข้า (กู้คืน)<input type="file" id="importJson" accept="application/json,.json" hidden></label>
       </div>
     </div>
     <div class="card small">
