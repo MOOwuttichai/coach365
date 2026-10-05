@@ -851,13 +851,26 @@
   }
 
   // ---------- AI key ----------
-  $("aiKey").value = S.ai?.key || "";
-  // รุ่นเก่าที่เคยเลือกไว้ → รุ่นใหม่ (Opus 5.5 ถูกกว่า Opus 5)
+  // AI ประเมินอาหาร: Gemini (ค่าเริ่ม มีโควตาฟรี) หรือ Claude · key แยกตามเจ้า เก็บในเครื่องเท่านั้น
   const MODEL_UP = { "claude-opus-5": "claude-opus-5-5", "claude-sonnet-5": "claude-sonnet-5-5" };
-  if (S.ai?.model && MODEL_UP[S.ai.model]) { S.ai.model = MODEL_UP[S.ai.model]; save(); }
-  $("aiModel").value = S.ai?.model || "claude-opus-5-5";
-  $("aiSave").addEventListener("click", () => { S.ai = { key: $("aiKey").value.trim(), model: $("aiModel").value }; save(); toast(S.ai.key ? "บันทึก API key แล้ว" : "บันทึกแล้ว"); });
-  $("aiClear").addEventListener("click", () => { S.ai = { model: $("aiModel").value }; $("aiKey").value = ""; save(); toast("ลบ key แล้ว"); });
+  const aiProvider = (m = S.ai?.model) => (String(m || "gemini").startsWith("claude") ? "claude" : "gemini");
+  const aiKey = () => { const p = aiProvider(); return S.ai?.keys?.[p] || (p === "claude" ? S.ai?.key : "") || ""; };
+  S.ai = S.ai || {}; S.ai.keys = S.ai.keys || {};
+  if (S.ai.key && !S.ai.keys.claude) S.ai.keys.claude = S.ai.key; delete S.ai.key;
+  if (MODEL_UP[S.ai.model]) S.ai.model = MODEL_UP[S.ai.model];
+  if (!S.ai.model || (aiProvider() === "claude" && !S.ai.keys.claude)) S.ai.model = "gemini-flash-latest";
+  save();
+  function renderAi() {
+    const p = aiProvider($("aiModel").value);
+    $("aiKey").value = S.ai.keys[p] || ""; $("aiKey").placeholder = p === "gemini" ? "AIza..." : "sk-ant-...";
+    $("aiHow").innerHTML = p === "gemini"
+      ? `สร้าง key ฟรีที่ <b>aistudio.google.com/apikey</b> (ล็อกอิน Google → Create API key) แล้ววางที่นี่ ใช้ฟรีได้วันละหลายสิบรูป · รูปจะถูกส่งไปที่ Google (โควตาฟรี Google อาจใช้ข้อมูลไปปรับปรุงบริการ)`
+      : `สร้าง key ที่ console.anthropic.com (ต้องเติมเครดิต) แล้ววางที่นี่`;
+  }
+  $("aiModel").value = S.ai.model; renderAi();
+  $("aiModel").addEventListener("change", () => { S.ai.model = $("aiModel").value; save(); renderAi(); });
+  $("aiSave").addEventListener("click", () => { S.ai.model = $("aiModel").value; S.ai.keys[aiProvider()] = $("aiKey").value.trim(); save(); toast(aiKey() ? "บันทึก API key แล้ว ลองถ่ายรูปอาหารได้เลย" : "บันทึกแล้ว"); });
+  $("aiClear").addEventListener("click", () => { delete S.ai.keys[aiProvider()]; $("aiKey").value = ""; save(); toast("ลบ key แล้ว"); });
   $("exportCsv").addEventListener("click", () => {
     const head = ["date", "weight", "waist", "neck", "steps", "sleepH", "bedAt", "meditateMin", "spend", ...CHECKS.map((c) => c[0]), "note"];
     const rows = entries().map((e) => head.map((h) => (h === "note" ? `"${String(e.note || "").replace(/"/g, '""')}"` : e[h] ?? "")).join(","));
@@ -865,7 +878,7 @@
   });
   $("importJson").addEventListener("change", async (ev) => {
     const f = ev.target.files[0]; if (!f) return;
-    try { const d = JSON.parse(await f.text()); if (!d.logs) throw 0; const key = S.ai?.key; S = Object.assign(def(), d); S.ai = { ...d.ai, key }; normalize(); save(); renderProfile(); renderAll(); toast("นำเข้าข้อมูลแล้ว"); }
+    try { const d = JSON.parse(await f.text()); if (!d.logs) throw 0; const keys = S.ai?.keys; S = Object.assign(def(), d); S.ai = { model: d.ai?.model || S.ai?.model, keys: keys || {} }; normalize(); save(); renderProfile(); renderAll(); toast("นำเข้าข้อมูลแล้ว"); }
     catch (e) { toast("ไฟล์ไม่ถูกต้อง ใช้ไฟล์ที่ส่งออกจากแอปนี้"); }
     ev.target.value = "";
   });
@@ -898,7 +911,7 @@
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { rollover(); applyWidgetPending(); } });
   setInterval(() => { rollover(); renderSchedule(); renderHero(); applyWidgetPending(); pushWidget(); }, 60000);
   renderAll(); applyWidgetPending(); renderBackup(); autoBackup();
-  window.Coach = { get S() { return S; }, save, iso, today, toast, fmt, esc, START, weekIdx, waterGoal, pushWidget, addMeal, afterMeal, closeKitchen, plannedMeal, refresh, celebrate, plan, goalAt, PHASES, DIET_BREAKS,
+  window.Coach = { get S() { return S; }, aiKey, aiProvider, save, iso, today, toast, fmt, esc, START, weekIdx, waterGoal, pushWidget, addMeal, afterMeal, closeKitchen, plannedMeal, refresh, celebrate, plan, goalAt, PHASES, DIET_BREAKS,
     total, y1End, startW, goalW, trendWeight, lastWeight, targetFor, show, renderProfile };
   const fromHash = () => { const h = location.hash.slice(1); if (["today", "food", "train", "money", "settings"].includes(h)) show(h); };
   addEventListener("hashchange", fromHash); addEventListener("DOMContentLoaded", fromHash);

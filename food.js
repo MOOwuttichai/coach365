@@ -80,7 +80,7 @@
     if (draft.url) URL.revokeObjectURL(draft.url);
     draft.blob = await shrink(f); draft.url = null; draft.ai = null;
     renderDraft();
-    if (C.S.ai?.key) aiEstimate();
+    if (C.aiKey()) aiEstimate();
     else C.toast("ใส่ API key ในแท็บตั้งค่าเพื่อให้ AI ประเมินจากรูป หรือเลือกเมนูเอง");
   });
 
@@ -227,39 +227,70 @@
 - ให้ช่วงแคลอรี่รวมต่ำสุด-สูงสุดที่เป็นไปได้ และระดับความมั่นใจตามจริง
 - notes_th: สิ่งที่มองไม่เห็นในรูปแต่มีผลต่อแคลอรี่ (เช่น น้ำมันใต้ข้าว ซอส) และคำแนะนำสั้นๆ 1 ประโยค สำหรับคนที่กำลังลดน้ำหนักและต้องการโปรตีนสูง`;
 
+  // Gemini ใช้ responseSchema แบบ OpenAPI (ชนิดตัวใหญ่ ไม่มี additionalProperties)
+  const toGemini = (sc) => {
+    const o = { type: sc.type.toUpperCase() };
+    if (sc.enum) o.enum = sc.enum;
+    if (sc.required) o.required = sc.required;
+    if (sc.properties) o.properties = Object.fromEntries(Object.entries(sc.properties).map(([k, v]) => [k, toGemini(v)]));
+    if (sc.items) o.items = toGemini(sc.items);
+    return o;
+  };
+  async function askGemini(key, model, data) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data } }, { text: PROMPT }] }],
+        generationConfig: { responseMimeType: "application/json", responseSchema: toGemini(SCHEMA) },
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(j.error?.message || `HTTP ${r.status}`); e.status = r.status; e.gemini = true; throw e; }
+    const c = j.candidates?.[0];
+    if (!c?.content?.parts?.length) throw new Error("AI ไม่ประเมินรูปนี้ ลองถ่ายใหม่ให้เห็นอาหารชัดๆ");
+    return JSON.parse(c.content.parts.map((x) => x.text || "").join(""));
+  }
+
   async function aiEstimate() {
-    const key = C.S.ai?.key; if (!key || !draft?.blob) return;
+    const key = C.aiKey(); if (!key || !draft?.blob) return;
     const btn = $("aiBtn"); btn.disabled = true; btn.textContent = "AI กำลังดูรูป…";
     try {
-      const { default: Anthropic } = await import("https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.128.0/+esm");
-      const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
-      const model = C.S.ai.model || "claude-opus-5-5";
-      const params = {
-        model, max_tokens: 16000,
-        output_config: { format: { type: "json_schema", schema: SCHEMA } },
-        messages: [{ role: "user", content: [
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: await b64(draft.blob) } },
-          { type: "text", text: PROMPT },
-        ] }],
-      };
-      // Opus 5.5 / Sonnet 5.5: ถ้าโมเดลปฏิเสธ ให้ระบบสลับไปโมเดลสำรองอัตโนมัติ
-      const res = model === "claude-opus-5-5" || model === "claude-sonnet-5-5"
-        ? await client.beta.messages.create({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" })
-        : await client.messages.create(params);
-      if (res.stop_reason === "refusal") throw new Error("AI ไม่ประเมินรูปนี้ ลองถ่ายใหม่ให้เห็นอาหารชัดๆ");
-      const text = res.content.find((b) => b.type === "text")?.text;
-      const out = JSON.parse(text);
+      const model = C.S.ai.model || "gemini-flash-latest";
+      const out = C.aiProvider(model) === "gemini" ? await askGemini(key, model, await b64(draft.blob)) : await askClaude(key, model);
+      if (!Array.isArray(out?.items)) throw new SyntaxError("bad");
       draft.ai = out;
-      draft.items = out.items.map((x) => ({ th: `${x.name_th} (${x.portion_th})`, kcal: x.kcal, p: x.protein_g }));
+      draft.items = out.items.map((x) => ({ th: `${x.name_th} (${x.portion_th})`, kcal: Math.round(x.kcal), p: Math.round(x.protein_g) }));
       renderDraft();
     } catch (e) {
-      const msg = e?.status === 401 ? "API key ไม่ถูกต้อง ตรวจที่แท็บตั้งค่า"
+      const msg = e?.gemini && (e.status === 400 && /api key/i.test(e.message) || e.status === 403) ? "Gemini API key ไม่ถูกต้อง ตรวจที่แท็บตั้งค่า"
+        : e?.gemini && e.status === 429 ? "ใช้โควตาฟรีของ Gemini ครบแล้ว รอสักครู่/พรุ่งนี้ หรือเลือกเมนูเอง"
+        : e?.gemini && e.status === 404 ? "ไม่พบโมเดลนี้ เลือก Gemini Flash ล่าสุดในแท็บตั้งค่า"
+        : e?.status === 401 ? "API key ไม่ถูกต้อง ตรวจที่แท็บตั้งค่า"
         : e?.status === 429 ? "เรียกถี่เกินไป รอสักครู่แล้วลองใหม่"
         : e?.status === 400 && /credit/i.test(e?.message || "") ? "เครดิต API หมด เติมที่ console.anthropic.com"
         : e instanceof SyntaxError ? "อ่านผล AI ไม่ได้ ลองใหม่อีกครั้ง"
         : e?.message || "เชื่อมต่อ AI ไม่ได้ ตรวจอินเทอร์เน็ต";
       C.toast(msg);
     } finally { btn.disabled = false; btn.textContent = "ให้ AI ประเมินอีกครั้ง"; }
+  }
+
+  async function askClaude(key, model) {
+    const { default: Anthropic } = await import("https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.128.0/+esm");
+    const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+    const params = {
+      model, max_tokens: 16000,
+      output_config: { format: { type: "json_schema", schema: SCHEMA } },
+      messages: [{ role: "user", content: [
+        { type: "image", source: { type: "base64", media_type: "image/jpeg", data: await b64(draft.blob) } },
+        { type: "text", text: PROMPT },
+      ] }],
+    };
+    // Opus 5.5 / Sonnet 5.5: ถ้าโมเดลปฏิเสธ ให้ระบบสลับไปโมเดลสำรองอัตโนมัติ
+    const res = model === "claude-opus-5-5" || model === "claude-sonnet-5-5"
+      ? await client.beta.messages.create({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" })
+      : await client.messages.create(params);
+    if (res.stop_reason === "refusal") throw new Error("AI ไม่ประเมินรูปนี้ ลองถ่ายใหม่ให้เห็นอาหารชัดๆ");
+    return JSON.parse(res.content.find((b) => b.type === "text")?.text);
   }
   $("aiBtn").addEventListener("click", aiEstimate);
   $("scanBtn").addEventListener("click", async () => {
