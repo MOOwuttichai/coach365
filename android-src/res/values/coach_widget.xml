@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="coach_widget_desc">สรุปวันนี้: ทำอะไรต่อ เวท แคลอรี่ โปรตีน ก้าวเดิน</string>
+    <color name="coach_widget_bg">#F7F9F5</color>
+    <color name="coach_widget_ink">#1B1F1A</color>
+    <color name="coach_widget_muted">#66705F</color>
+    <color name="coach_widget_accent">#2B55D9</color>
+    <color name="coach_widget_good">#2E9E5B</color>
+    <color name="coach_widget_track">#DDE3D8</color>
+</resources>

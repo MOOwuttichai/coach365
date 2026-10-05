@@ -63,7 +63,13 @@ td.num,th.num{text-align:right}
 .chart{width:100%;height:auto}
 .legend{display:flex;gap:16px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:6px}
-.lg-t{background:var(--target)} .lg-a{background:var(--accent)}
+.lg-t{background:var(--target)} .lg-a{background:var(--accent)} .lg-g{height:0!important;border-top:2px dotted var(--good)}
+/* ไขมันในร่างกาย: สเกล 5–40% แถบเขียว = ช่วงเป้า จุดกลวง = วันแรก จุดทึบ = ล่าสุด */
+.bfscale{position:relative;height:10px;border-radius:99px;background:var(--sunk);margin:10px 8px 4px}
+.bfscale .band{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--good) 45%,transparent);border-radius:99px}
+.bfscale .dot{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid var(--surface);transform:translate(-50%,-50%)}
+.bfscale .dot.first{background:var(--surface);border-color:var(--muted);width:12px;height:12px;border-width:2px}
+.bfaxis{display:flex;justify-content:space-between;font:12px var(--mono);color:var(--muted);margin:0 2px}
 /* exercises */
 .exlist{display:flex;flex-direction:column;gap:12px}
 .ex{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;grid-template-columns:minmax(0,220px) 1fr;gap:12px;align-items:start}

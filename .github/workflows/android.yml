@@ -51,6 +51,23 @@ jobs:
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />#' $M
           grep -c "uses-permission" $M
 
+      - name: Home-screen widget
+        run: |
+          P=android/app/src/main/java/com/oofsss/coach365
+          cp android-src/java/*.java $P/
+          cp -rT android-src/res android/app/src/main/res
+          python3 - <<'EOF'
+          p = "android/app/src/main/AndroidManifest.xml"
+          s = open(p, encoding="utf-8").read()
+          r = ('        <receiver android:name="com.oofsss.coach365.CoachWidget" android:exported="false">\n'
+               '            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>\n'
+               '            <meta-data android:name="android.appwidget.provider" android:resource="@xml/coach_widget_info" />\n'
+               '        </receiver>\n    </application>')
+          assert "</application>" in s
+          open(p, "w", encoding="utf-8").write(s.replace("</application>", r, 1))
+          EOF
+          grep -n "CoachWidget" android/app/src/main/AndroidManifest.xml
+
       - name: Sync
         run: npx cap sync android
 
@@ -75,5 +92,6 @@ jobs:
             ดาวน์โหลด **Coach365.apk** ด้านล่างแล้วเปิดไฟล์บนมือถือ Android เพื่อติดตั้ง
             (ครั้งแรกต้องอนุญาต "ติดตั้งแอปจากแหล่งที่ไม่รู้จัก")
             แอปโหลดหน้าจากเว็บ จึงอัปเดตเองทุกครั้งที่มีเวอร์ชันใหม่ ไม่ต้องลง APK ซ้ำ
+            มีวิดเจ็ตหน้าจอโฮม: กดค้างที่หน้าโฮม → วิดเจ็ต → Coach 365
           files: Coach365.apk
           prerelease: false

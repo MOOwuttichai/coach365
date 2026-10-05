@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="coach_widget_bg">#1C211B</color>
+    <color name="coach_widget_ink">#EEF1EC</color>
+    <color name="coach_widget_muted">#9AA592</color>
+    <color name="coach_widget_accent">#8EA8FF</color>
+    <color name="coach_widget_good">#5CCB8A</color>
+    <color name="coach_widget_track">#333A31</color>
+</resources>

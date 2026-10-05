@@ -122,6 +122,20 @@
       const m = C.plannedMeal(slot), done = meals.length > i;
       return `<button type="button" class="planbtn ${done ? "done" : ""}" data-slot="${slot}" ${done ? "disabled" : ""}><span class="num muted">${t}</span><span><b>${done ? "✓ " : ""}${m.th}</b><br><span class="small muted">${name} · ${m.kcal} kcal · โปรตีน ${m.p} ก.</span></span></button>`;
     }).join("") + `<button type="button" class="planbtn ${l.if ? "done" : ""}" id="closeKitchen" ${l.if ? "disabled" : ""}><span class="num muted">🔒</span><span><b>${l.if ? "✓ ปิดครัวแล้ว" : "ปิดครัว"}</b><br><span class="small muted">กดหลังมื้อสุดท้าย แล้วไม่กินอีกจนพรุ่งนี้</span></span></button>`;
+    // แผนอาหารคงที่ ~1,600–1,800 kcal แต่เป้าเปลี่ยนตามน้ำหนักและช่วง (พักไดเอท/สร้างกล้ามต้องกินเพิ่ม)
+    // ช่วงลดไขมัน: อาหารร้านมีน้ำมันแฝง 100–200 kcal จึงเตือนให้เติมเมื่อขาดเยอะจริงเท่านั้น
+    const planK = [1, 2, 3].reduce((a, s) => a + C.plannedMeal(s).kcal, SNACKS.x.kcal), gap = TARGET.kcal - planK;
+    const cutting = ["cut", "minicut"].includes(C.plan(C.today()).mode);
+    if (gap >= (cutting ? 350 : 150)) box.innerHTML += `<div class="callout small">แผนวันนี้ ~${C.fmt(planK)} kcal เป้า ${C.fmt(TARGET.kcal)} → เติม ${fill(gap)}</div>`;
+    else if (gap <= (cutting ? -150 : -250)) box.innerHTML += `<div class="callout small">แผนวันนี้ ~${C.fmt(planK)} kcal เกินเป้า ${C.fmt(-gap)} → ข้าวลด ${Math.max(1, Math.min(3, Math.round(-gap / 80)))} ทัพพี หรือข้ามถั่วลิสง</div>`;
+  }
+  // เติมให้ถึงเป้าด้วยของที่มีในรายการซื้ออยู่แล้ว
+  function fill(gap) {
+    const out = [];
+    [["ข้าวเพิ่ม", "ทัพพี", 80, 3], ["นมจืด", "กล่อง", 90, 2], ["กล้วยหอม", "ลูก", 105, 2], ["ไข่ต้ม", "ฟอง", 78, 2]].forEach(([n, u, k, max]) => {
+      const q = Math.min(max, Math.floor(gap / k)); if (q > 0) { out.push(`${n} ${q} ${u}`); gap -= q * k; }
+    });
+    return out.join(" + ") || "ข้าวเพิ่ม 1 ทัพพี";
   }
   $("planToday").addEventListener("click", (e) => {
     if (e.target.closest("#closeKitchen")) { C.closeKitchen(); render(); return; }
@@ -152,7 +166,7 @@
   });
 
   // ---------- แผนอาหาร / สูตร ----------
-  const curWeek = () => Math.floor(Math.max(0, Math.round((C.today() - C.START) / 86400000)) / 7) % 2;
+  const curWeek = () => C.weekIdx(C.today()) % 2;
   let shownWeek = curWeek();
   function renderPlan() {
     const wdToday = (new Date().getDay() + 6) % 7;
@@ -219,7 +233,7 @@
     try {
       const { default: Anthropic } = await import("https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.128.0/+esm");
       const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
-      const model = C.S.ai.model || "claude-opus-5";
+      const model = C.S.ai.model || "claude-opus-5-5";
       const params = {
         model, max_tokens: 16000,
         output_config: { format: { type: "json_schema", schema: SCHEMA } },
@@ -228,8 +242,8 @@
           { type: "text", text: PROMPT },
         ] }],
       };
-      // Opus 5: ถ้าโมเดลปฏิเสธ ให้ระบบสลับไปโมเดลสำรองอัตโนมัติ
-      const res = model === "claude-opus-5"
+      // Opus 5.5 / Sonnet 5.5: ถ้าโมเดลปฏิเสธ ให้ระบบสลับไปโมเดลสำรองอัตโนมัติ
+      const res = model === "claude-opus-5-5" || model === "claude-sonnet-5-5"
         ? await client.beta.messages.create({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" })
         : await client.messages.create(params);
       if (res.stop_reason === "refusal") throw new Error("AI ไม่ประเมินรูปนี้ ลองถ่ายใหม่ให้เห็นอาหารชัดๆ");

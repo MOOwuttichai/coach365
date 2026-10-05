@@ -1,4 +1,4 @@
-// ฟีเจอร์เสริม: กราฟต่อท่า รูปเทียบก่อน-หลัง สรุปสัปดาห์ ปฏิทินความสม่ำเสมอ น้ำ ETA รายการซื้อของ
+// ฟีเจอร์เสริม: กราฟต่อท่า รูปเทียบก่อน-หลัง สรุปสัปดาห์ ปฏิทินความสม่ำเสมอ น้ำ แนวโน้ม + ปรับแคลอรี่รายสัปดาห์ ไขมันในร่างกาย รายการซื้อของ
 (() => {
   const C = window.Coach, $ = (id) => document.getElementById(id), DAY = 86400000;
   const e1rm = (w, r) => (w && r ? w * (1 + r / 30) : 0);
@@ -58,35 +58,130 @@
     $("heat").innerHTML = `<div class="row between"><h2>ความสม่ำเสมอ</h2><b class="num">🔥 ${streak} วันติด</b></div><div class="heat">${cells}</div><div class="small muted">แต่ละช่อง = 1 วัน สีเข้มขึ้นตามจำนวนที่ทำได้ (IF · เวท · โปรตีน · สมาธิ · เดิน 5,000+)</div>`;
   }
 
-  // ---------- น้ำหนักเฉลี่ย 7 วัน + วันที่คาดว่าถึงเป้า ----------
+  // ---------- น้ำหนักเฉลี่ย 7 วัน + อัตราต่อสัปดาห์ + ปรับแคลอรี่รายสัปดาห์ ----------
+  // ช่วงที่ควรเป็น = อัตราของช่วงในแผน (%/สัปดาห์) ± ระยะยอมรับ · ตอนลดยอมให้เร็วกว่าเป้าได้มากกว่าช้ากว่า
+  const band = (r) => (r < 0 ? [r - 0.35, r + 0.25] : r > 0 ? [r - 0.1, r + 0.1] : [-0.2, 0.2]);
+  let adjDelta = 0;
   function renderTrend() {
     const ws = days().filter((k) => logs()[k].weight != null).map((k) => ({ k, w: logs()[k].weight }));
     if (ws.length < 3) { $("trend").innerHTML = `<p class="small muted">ชั่งน้ำหนักครบ 3 วันจะเริ่มคำนวณแนวโน้ม</p>`; return; }
     const avg = (arr) => arr.reduce((a, x) => a + x.w, 0) / arr.length;
     const last7 = ws.slice(-7), prev7 = ws.slice(-14, -7);
     const a7 = avg(last7), rate = prev7.length >= 3 ? (a7 - avg(prev7)) / ((new Date(last7[last7.length - 1].k) - new Date(prev7[prev7.length - 1].k)) / DAY) * 7 : null;
-    const p = C.plan(C.today()), mode = p.mode;
-    const want = { cut: [-0.8, -0.4], cut2: [-0.7, -0.3], minicut: [-0.8, -0.4], maintain: [-0.2, 0.2], bulk: [0.05, 0.25] }[mode];
-    const cls = rate == null ? "" : rate >= want[0] && rate <= want[1] ? "good" : (mode === "bulk" ? rate > want[1] : rate < want[0]) ? "warn" : "bad";
-    let eta = "";
-    if (rate == null) eta = "ชั่งต่ออีก 1 สัปดาห์จะเริ่มบอกแนวโน้มได้";
-    else if (mode === "cut" && rate < -0.05) { const weeks = (a7 - 78) / -rate; const d = new Date(C.today().getTime() + weeks * 7 * DAY); eta = `ถ้าเป็นแบบนี้ต่อไป ถึง 78 กก. ประมาณ <b>${d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}</b>`; }
-    else if (mode === "bulk") eta = rate > 0.3 ? "ขึ้นเร็วไป จะเป็นไขมันมากกว่ากล้าม ลดข้าว 1 ทัพพี/วัน" : rate < 0 ? "ช่วงสร้างกล้ามต้องกินให้ถึงเป้า เพิ่มข้าว 1 ทัพพี + นม 1 กล่อง" : "กำลังดี กล้ามขึ้นช้าแต่ชัวร์ ดูน้ำหนักบาร์ที่เพิ่มเป็นหลัก";
-    else if (mode === "maintain") eta = Math.abs(rate) <= 0.2 ? "น้ำหนักนิ่งตามแผน ร่างกายกำลังปรับตัว" : "ควรนิ่ง ปรับอาหารทีละ 100 kcal";
-    else eta = rate >= 0 ? "น้ำหนักนิ่งหรือขึ้น เช็กน้ำมันแฝงในอาหารร้าน และปิดครัวตรงเวลาไหม" : "ลงตามแผน รักษาโปรตีนไว้ กล้ามจะไม่หาย";
-    $("trend").innerHTML = `<div class="stats"><div class="stat good"><span class="eyebrow">เฉลี่ย 7 วัน</span><b>${a7.toFixed(1)}</b><span class="small muted">เป้าตอนนี้ ${p.goal.toFixed(1)}</span></div><div class="stat ${cls}"><span class="eyebrow">ต่อสัปดาห์</span><b>${rate == null ? "–" : (rate > 0 ? "+" : "") + rate.toFixed(2)}</b><span class="small muted">ช่วง${p.modeTh}: ${want[0]} ถึง ${want[1]}</span></div></div><p class="small" style="margin:6px 0 0">${eta}</p>`;
+    const p = C.plan(C.today()), mode = p.mode, gw = C.goalW(), S = C.S;
+    const [lo, hi] = band(p.rate).map((r) => (r * a7) / 100), cutting = mode === "cut" || mode === "minicut";
+    const cls = rate == null || mode === "dietbreak" ? "" : rate >= lo && rate <= hi ? "good" : "warn";
+    // เกินช่วงด้านไหน → ปรับ 100 kcal · ไม่ปรับใน 3 สัปดาห์แรก (น้ำออกเยอะ) สัปดาห์พักไดเอท+สัปดาห์ถัดไป
+    // และ 2 สัปดาห์แรกหลังเปลี่ยนช่วง (น้ำ/ไกลโคเจนขึ้นลง) · ปรับแล้วรอดูผล 2 สัปดาห์
+    const ago = (n) => C.plan(new Date(C.today().getTime() - n * DAY));
+    const canAdj = rate != null && mode !== "dietbreak" && !ago(7).dietBreak && ago(14).mode === mode && p.day > 21 && (S.adjNext ?? 0) <= p.week;
+    const floor = canAdj && cutting && rate > hi && p.target.kcal <= 1550; // ถึงพื้น 1,500 แล้ว ให้เดินเพิ่มแทน
+    adjDelta = !canAdj ? 0 : rate > hi ? -100 : rate < lo ? 100 : 0;
+    if (floor || Math.abs((S.kcalAdj || 0) + adjDelta) > 500) adjDelta = 0;
+    let msg;
+    if (rate == null) msg = "ชั่งต่ออีก 1 สัปดาห์จะเริ่มบอกแนวโน้มได้";
+    else if (mode === "dietbreak") msg = "สัปดาห์พักไดเอท น้ำหนักขึ้น 0.5–1 กก. ได้ เป็นน้ำกับไกลโคเจนในกล้าม สัปดาห์หน้าจะลงเอง";
+    else if (cutting) msg = rate > hi ? `ลงช้ากว่าแผน${rate >= 0 ? " (นิ่ง/ขึ้น)" : ""} เช็กน้ำมันแฝงในอาหารร้าน ของว่าง และเครื่องดื่มหวาน` : rate < lo ? "ลงเร็วเกินไป เสี่ยงเสียกล้าม กินเพิ่มอีกนิด" : "ลงตามแผน รักษาโปรตีนกับน้ำหนักบาร์ไว้ กล้ามจะไม่หาย";
+    else if (mode === "bulk") msg = rate > hi ? "ขึ้นเร็วไป จะเป็นไขมันมากกว่ากล้าม" : rate < lo ? "ยังไม่ขึ้นตามแผน ช่วงสร้างกล้ามต้องกินให้ถึงเป้า" : "กำลังดี กล้ามขึ้นช้าแต่ชัวร์ ดูน้ำหนักบาร์ที่เพิ่มเป็นหลัก";
+    else msg = rate > hi ? "น้ำหนักขึ้น ควรนิ่ง" : rate < lo ? "น้ำหนักลง ช่วงนี้ควรนิ่ง" : "น้ำหนักนิ่งตามแผน ร่างกายกำลังปรับตัว";
+    if (cutting && rate != null && rate < -0.05 && a7 > gw) { const d = new Date(C.today().getTime() + ((a7 - gw) / -rate) * 7 * DAY); msg += ` · ถ้าเป็นแบบนี้ต่อไป ถึง ${gw} กก. ประมาณ <b>${d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}</b>`; }
+    const how = adjDelta < 0 ? (cutting ? "เช่น ข้าวมื้อเย็นลดครึ่งทัพพี + เลิกเครื่องดื่มหวาน 1 แก้ว · หรือจะเดินเพิ่มวันละ 2,000 ก้าวแทนก็ได้ เลือกอย่างเดียว" : "เช่น ข้าวลด 1 ทัพพีต่อวัน")
+      : "เช่น ข้าวเพิ่ม 1 ทัพพี หรือนมจืด 1 กล่อง";
+    const adj = adjDelta ? `<div class="callout small" style="margin-top:8px"><b>ปรับประจำสัปดาห์:</b> ${adjDelta > 0 ? "เพิ่ม" : "ลด"} 100 kcal/วัน (${C.fmt(p.target.kcal)} → ${C.fmt(p.target.kcal + adjDelta)}) ${how}
+      <div class="row" style="margin-top:8px"><button class="btn small" type="button" data-adj="apply">ปรับเป้า ${adjDelta > 0 ? "+" : "−"}100 kcal</button><button class="btn ghost small" type="button" data-adj="skip">ยังก่อน ดูอีกสัปดาห์</button></div></div>`
+      : floor ? `<div class="callout small" style="margin-top:8px">แคลอรี่ถึงขั้นต่ำแล้ว อย่าลดอาหารอีก ให้เพิ่มเดินวันละ 2,000 ก้าว และเช็กการนอน</div>` : "";
+    $("trend").innerHTML = `<div class="stats"><div class="stat good"><span class="eyebrow">เฉลี่ย 7 วัน</span><b>${a7.toFixed(1)}</b><span class="small muted">เป้าตอนนี้ ${p.goal.toFixed(1)}</span></div>`
+      + `<div class="stat ${cls}"><span class="eyebrow">ต่อสัปดาห์</span><b>${rate == null ? "–" : (rate > 0 ? "+" : "") + rate.toFixed(2)}</b><span class="small muted">ควรอยู่ ${lo.toFixed(2)} ถึง ${hi > 0 ? "+" : ""}${hi.toFixed(2)}</span></div>`
+      + `<div class="stat"><span class="eyebrow">เป้ากินตอนนี้</span><b>${C.fmt(p.target.kcal)}</b><span class="small muted">kcal${S.kcalAdj ? ` · ปรับแล้ว ${S.kcalAdj > 0 ? "+" : ""}${S.kcalAdj}` : ""}</span></div></div>`
+      + `<p class="small" style="margin:6px 0 0">${msg}</p>${adj}`;
+  }
+  $("trend").addEventListener("click", (e) => {
+    const a = e.target.dataset.adj; if (!a) return;
+    const S = C.S, w = C.plan(C.today()).week;
+    if (a === "apply") { S.kcalAdj = (S.kcalAdj || 0) + adjDelta; S.adjNext = w + 2; C.toast(`เป้าแคลอรี่ ${adjDelta > 0 ? "+" : "−"}100 แล้ว ดูผลอีก 2 สัปดาห์`); }
+    else { S.adjNext = w + 1; C.toast("โอเค สัปดาห์หน้าดูใหม่"); }
+    C.save(); C.refresh();
+  });
+
+  // ---------- แผน 2 ปี ----------
+  const PROG = { AB: "Full body 3 วัน", UL: "Upper/Lower 4 วัน", PPL: "Push/Pull/Legs 5 วัน", PPL2: "PPL หนัก 5 วัน" };
+  function renderRoadmap() {
+    const p = C.plan(C.today()), ext = C.S.cutExtend || 0;
+    const abs = (j) => (j >= 365 ? j + ext * 7 : j); // วันตามแผนหลัก → วันจริง (รวมช่วงลดต่อ)
+    $("roadmap").innerHTML = C.PHASES.map(([a, b, name, mode, prog, note, rate], i) => {
+      const s = abs(Math.round((a - 1) * 30.4)), e = abs(Math.round(b * 30.4)), T = C.targetFor(mode, rate, C.goalAt(s));
+      return `<div class="rm ${i + 1 === p.phase ? "now" : i + 1 < p.phase ? "past" : ""}">
+      <div class="rm-h"><b>${name}</b><span class="num small muted">เดือน ${a}${b > a ? "–" + b : ""}</span></div>
+      <div class="small">${note}</div>
+      <div class="small muted">${T.th} · ~${C.fmt(T.kcal)} kcal · โปรตีน ${T.protein} ก. · เวท ${PROG[prog]} · ${C.goalAt(s).toFixed(0)} → ${C.goalAt(e).toFixed(0)} กก.</div></div>`;
+    }).join("") + `<ul class="plainlist small muted" style="margin-top:6px">
+      <li>🍚 พักไดเอท 1 สัปดาห์ท้ายเดือน 3, 6, 9: กินระดับรักษาน้ำหนัก ช่วยให้ลดต่อได้ทั้งปีโดยไม่พัง</li>
+      <li>🚦 เริ่มปี 2 (สร้างกล้าม) เมื่อไขมัน ≤ 15% ถ้ายังไม่ถึง แอปจะให้ลดต่อทีละ 4 สัปดาห์${ext ? ` (ตอนนี้ลดต่อแล้ว +${ext} สัปดาห์)` : ""}</li>
+      <li>⚖️ kcal ในตารางคิดจากน้ำหนักตามเส้นเป้า ของจริงแอปคำนวณจากน้ำหนักที่ชั่ง และปรับให้ทุกสัปดาห์</li>
+      <li>📏 ปลายปี 2 จะหนักกว่าปลายปี 1 เล็กน้อยเพราะเป็นกล้ามที่สร้างมา ดูรอบเอว ไขมัน % และรูปเทียบเป็นหลัก</li></ul>`;
   }
 
-  // ---------- แผน 3 ปี ----------
-  function renderRoadmap() {
-    const p = C.plan(C.today());
-    const goalEnd = (m) => C.goalAt(Math.round(m * 30.4));
-    $("roadmap").innerHTML = C.PHASES.map(([a, b, name, mode, prog, note], i) => `<div class="rm ${i + 1 === p.phase ? "now" : i + 1 < p.phase ? "past" : ""}">
-      <div class="rm-h"><b>${name}</b><span class="num small muted">เดือน ${a}–${b}</span></div>
-      <div class="small">${note}</div>
-      <div class="small muted">${TARGETS[mode].th} · ${C.fmt(TARGETS[mode].kcal)} kcal · โปรตีน ${TARGETS[mode].protein} ก. · เวท ${{ AB: "Full body 3 วัน", UL: "Upper/Lower 4 วัน", PPL: "Push/Pull/Legs 5 วัน", PPL2: "PPL หนัก 5 วัน" }[prog]} · เป้าจบช่วง ${goalEnd(b).toFixed(0)} กก.</div></div>`).join("") +
-      `<p class="small muted">น้ำหนักปลายปี 3 (~82 กก.) มากกว่าปลายปี 1 (78) เพราะเป็นกล้ามที่สร้างมา ไม่ใช่ไขมัน ตัวเลขที่ต้องดูคือรอบเอวและรูปเทียบ</p>`;
+  // ---------- ไขมันในร่างกาย + น้ำหนักที่ลีนจริง ----------
+  // สูตร US Navy (ผู้ชาย, ซม.): คลาดเคลื่อน ±3–4% จากเครื่องสแกน แต่ดูแนวโน้มได้ดีถ้าวัดแบบเดิมทุกครั้ง
+  const navyBf = (h, waist, neck) => (h && waist && neck && waist - neck > 5 ? 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(h)) - 450 : null);
+  const waistFor = (h, neck, bf) => neck + 10 ** ((1.0324 + 0.15456 * Math.log10(h) - 495 / (bf + 450)) / 0.19077);
+  // น้ำหนักตอนไขมันเหลือ bf%: จำลองลดทีละ 0.5 กก. สัดส่วนที่เสียเนื้อเยื่อไม่ใช่ไขมัน (น้ำ ไกลโคเจน กล้าม)
+  // ตามสมการ Forbes 10.4 / (10.4 + มวลไขมัน) ซึ่งยิ่งผอมยิ่งเสียมาก · คิดครึ่งเดียวเพราะเล่นเวท + โปรตีนถึง
+  function weightAt(w, lean, bf) {
+    let fat = w - lean;
+    while (w > 35 && fat / w > bf / 100) { const p = (0.5 * 10.4) / (10.4 + fat); w -= 0.5; lean -= 0.5 * p; fat -= 0.5 * (1 - p); }
+    return w;
   }
+  const firstOf = (key) => { const ks = days().filter((d) => logs()[d][key] != null), s = C.iso(new Date(C.START.getTime() - 7 * DAY)); return logs()[ks.find((d) => d >= s) ?? ks[0]]?.[key]; };
+  const latestOf = (key) => { const k = days().filter((d) => logs()[d][key] != null).pop(); return k ? { k, v: logs()[k][key] } : null; };
+  let bcGoal = null;
+  function renderBodyComp() {
+    const box = $("bodycomp"), S = C.S, h = Number(S.profile.height), gw = C.goalW(), gbf = Number(S.profile.goalBf) || 12, p = C.plan(C.today());
+    const head = (sub) => `<div class="row between"><h2>ไขมันในร่างกาย</h2><span class="small muted">${sub}</span></div>`;
+    if (!h) { box.innerHTML = head("") + `<p class="small" style="margin:0">ใส่ส่วนสูงก่อน แอปถึงจะคำนวณไขมัน และบอกได้ว่าน้ำหนักเท่าไรคุณถึงจะลีนแบบเห็นกล้าม</p><div class="row"><button class="btn small" type="button" data-bc="profile">ใส่ส่วนสูง/อายุ</button></div>`; return; }
+    const m = h / 100, look = [21.5 * m * m, 23 * m * m]; // ลีนเห็นกล้าม (ไขมัน ~10–12%) กล้ามระดับนักกีฬาทั่วไป ≈ BMI 21.5–23
+    const lookTxt = `คนสูง ${h} ซม. ที่ไขมัน ~10–12% และกล้ามระดับในรูปที่อยากได้ มักหนัก <b>${look[0].toFixed(0)}–${look[1].toFixed(0)} กก.</b>`;
+    const wa = latestOf("waist"), ne = latestOf("neck"), bf = navyBf(h, wa?.v, ne?.v);
+    if (bf == null) {
+      box.innerHTML = head("ยังไม่ได้วัด") + `<p class="small" style="margin:0">วัดรอบเอว (ระดับสะดือ) กับรอบคอ (ใต้ลูกกระเดือก) ตอนเช้าก่อนกิน แล้วใส่ในช่อง "บันทึกเพิ่มเติม" แอปจะคำนวณไขมันให้</p>
+        <div class="callout small">${lookTxt} · เป้าตอนนี้ ${gw} กก.${gw < look[0] - 1.5 ? " ซึ่งต่ำกว่าช่วงนี้ อาจต้องเสียกล้ามถึงจะถึง รอผลวัดไขมันก่อนตัดสินใจ" : ""}</div>`;
+      return;
+    }
+    const w = C.trendWeight() ?? C.startW(), lean = w * (1 - bf / 100), b0 = navyBf(h, firstOf("waist"), firstOf("neck"));
+    const at = (x) => weightAt(w, lean, x), pos = (v) => ((Math.min(40, Math.max(5, v)) - 5) / 35) * 100;
+    bcGoal = Math.round(at(gbf));
+    const low = bf > 15 && gw < at(10) - 1.5, high = bf > 15 && gw > at(15) + 1.5;
+    const verdict = bf <= 15 ? `✅ ไขมันอยู่ในช่วงเป้า 10–15% แล้ว${bf <= gbf ? " ลีนแบบเห็นกล้ามท้อง" : " อีกนิดเดียว"}`
+      : low ? `⚠️ เป้า ${gw} กก. ต่ำกว่าน้ำหนักที่คุณน่าจะมีตอนไขมันเหลือ 10% (~${at(10).toFixed(0)} กก.) ถ้าจะลงถึง ${gw} ต้องเสียกล้ามอีกราว ${(at(10) - gw).toFixed(0)} กก. จะดูผอมแห้ง ไม่ใช่ลุคในรูป`
+      : high ? `⚠️ ที่ ${gw} กก. ไขมันน่าจะยังเกิน 15% กล้ามท้องยังไม่ชัด`
+      : `✅ เป้า ${gw} กก. สอดคล้องกับไขมัน 10–15% ของคุณ`;
+    const fix = low || high ? `<div class="row" style="margin-top:8px"><button class="btn small" type="button" data-bc="goal">ใช้ ${bcGoal} กก. เป็นเป้า (ไขมัน ${gbf}%)</button></div>` : "";
+    let gate = "";
+    if ((p.year === 1 && p.month >= 11) || p.extra) {
+      gate = bf > 15
+        ? `<div class="callout small"><b>🚦 ยังไม่ลีนพอเริ่มสร้างกล้าม</b> ไขมัน ~${bf.toFixed(0)}% (ควร ≤ 15%) ลดต่ออีก 4 สัปดาห์แบบช้า แล้วค่อยเริ่มปี 2<div class="row" style="margin-top:8px"><button class="btn small" type="button" data-bc="extend">ลดต่อ +4 สัปดาห์</button>${S.cutExtend ? `<button class="btn ghost small" type="button" data-bc="unextend">ยกเลิก 4 สัปดาห์</button>` : ""}</div></div>`
+        : `<div class="callout small"><b>🚦 ลีนพอแล้ว พร้อมเริ่มปี 2 สร้างกล้าม</b>${p.extra ? `<div class="row" style="margin-top:8px"><button class="btn small" type="button" data-bc="starty2">เริ่มปี 2 สัปดาห์นี้</button></div>` : ""}</div>`;
+    }
+    box.innerHTML = head(`วัด ${wa.k.slice(5)} · คอ ${ne.k.slice(5)}`)
+      + `<div class="stats"><div class="stat ${bf <= 15 ? "good" : "warn"}"><span class="eyebrow">ไขมัน</span><b>${bf.toFixed(1)}%</b><span class="small muted">${b0 != null && Math.abs(b0 - bf) >= 0.1 ? `เริ่ม ${b0.toFixed(1)}%` : `เป้า ${gbf}%`}</span></div>`
+      + `<div class="stat"><span class="eyebrow">ไขมัน / ไม่ใช่ไขมัน</span><b>${(w - lean).toFixed(1)} / ${lean.toFixed(1)}</b><span class="small muted">กก.</span></div>`
+      + `<div class="stat ${wa.v <= waistFor(h, ne.v, 15) ? "good" : ""}"><span class="eyebrow">เอวเป้า (ไขมัน ${gbf}%)</span><b>${waistFor(h, ne.v, gbf).toFixed(0)} ซม.</b><span class="small muted">ตอนนี้ ${wa.v}</span></div></div>`
+      + `<div class="bfscale" role="img" aria-label="ไขมัน ${bf.toFixed(1)}% ช่วงเป้า 10–15%"><i class="band" style="left:${pos(10)}%;width:${pos(15) - pos(10)}%"></i>${b0 != null ? `<i class="dot first" style="left:${pos(b0)}%"></i>` : ""}<i class="dot" style="left:${pos(bf)}%"></i></div>`
+      + `<div class="bfaxis"><span>5%</span><span>10</span><span>15</span><span>20</span><span>25</span><span>30</span><span>35</span><span>40%</span></div>`
+      + (bf > 15 ? `<p class="small" style="margin:0">ถ้าเล่นเวทและโปรตีนถึงตลอด คุณจะไขมัน 15% ที่ ≈ <b>${at(15).toFixed(0)}</b> กก. · 12% ≈ <b>${at(12).toFixed(0)}</b> · 10% ≈ <b>${at(10).toFixed(0)}</b> กก.</p>` : "")
+      + `<div class="callout small">${verdict}${fix}</div>${gate}`
+      + `<p class="small muted" style="margin:0">ประมาณด้วยสูตร US Navy จากส่วนสูง รอบเอว รอบคอ คลาดเคลื่อน ±3–4% ดูแนวโน้มสำคัญกว่าตัวเลข วัดเวลาเดิม จุดเดิมทุกครั้ง</p>`;
+  }
+  $("bodycomp").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-bc]")?.dataset.bc; if (!a) return;
+    const S = C.S, i = Math.round((C.today() - C.START) / DAY);
+    if (a === "profile") { C.show("settings"); $("p-height").focus(); return; }
+    if (a === "goal") { S.profile.goalW = bcGoal; C.toast(`ตั้งเป้า ${bcGoal} กก. แล้ว`); }
+    if (a === "extend") { S.cutExtend = (S.cutExtend || 0) + 4; C.toast("ลดต่ออีก 4 สัปดาห์ ปี 2 เลื่อนออกไปแล้ว"); }
+    if (a === "unextend") S.cutExtend = Math.max(0, (S.cutExtend || 0) - 4);
+    if (a === "starty2") { S.cutExtend = Math.max(0, Math.floor((i - 365) / 7)); C.celebrate("เริ่มปี 2 สร้างกล้าม 💪"); }
+    C.save(); C.renderProfile(); C.refresh();
+  });
 
   // ---------- โค้ชสรุปสัปดาห์ ----------
   function renderWeekly() {
@@ -96,7 +191,8 @@
     const n = (k) => L.filter((l) => l[k]).length, steps = L.filter((l) => l.steps).map((l) => l.steps), spend = L.reduce((a, l) => a + (l.spend || 0), 0);
     const kcal = L.map((l) => (l.food || []).reduce((a, m) => a + m.items.reduce((b, i) => b + i.kcal, 0), 0)).filter(Boolean);
     const lines = [];
-    lines.push(n("workout") >= 3 ? `✅ เวท ${n("workout")} ครั้ง ครบตามแผน` : `⚠️ เวท ${n("workout")}/3 ครั้ง ${n("workout") === 0 ? "สัปดาห์นี้ยังไม่ได้เริ่ม เริ่มพรุ่งนี้เช้า 1 เซสชันพอ" : "ขาดอีก " + (3 - n("workout"))}`);
+    const need = { AB: 3, UL: 4, PPL: 5, PPL2: 5 }[C.plan(t).prog] || 3;
+    lines.push(n("workout") >= need ? `✅ เวท ${n("workout")} ครั้ง ครบตามแผน` : `⚠️ เวท ${n("workout")}/${need} ครั้ง ${n("workout") === 0 ? "สัปดาห์นี้ยังไม่ได้เริ่ม เริ่มพรุ่งนี้เช้า 1 เซสชันพอ" : "ขาดอีก " + (need - n("workout"))}`);
     lines.push(n("if") >= 5 ? `✅ ปิดครัวตรงเวลา ${n("if")}/7 วัน` : `⚠️ ปิดครัวตรงเวลาแค่ ${n("if")}/7 วัน ตัวนี้มีผลกับน้ำหนักมากที่สุด`);
     lines.push(n("protein") >= 5 ? `✅ โปรตีนถึงเป้า ${n("protein")} วัน` : `⚠️ โปรตีนถึงเป้า ${n("protein")}/7 วัน เพิ่มไข่ต้ม 2 ฟองต่อวันง่ายสุด`);
     if (steps.length) { const a = steps.reduce((x, y) => x + y, 0) / steps.length; lines.push(a >= 5000 ? `✅ เดินเฉลี่ย ${C.fmt(a)} ก้าว` : `⚠️ เดินเฉลี่ย ${C.fmt(a)} ก้าว ลองลงรถก่อน 1 ป้าย`); }
@@ -141,13 +237,13 @@
 
   // ---------- รายการซื้อของแบบติ๊ก ----------
   function renderShopChecks() {
-    const wk = Math.floor(Math.max(0, Math.round((C.today() - C.START) / DAY)) / 7), key = "w" + wk;
+    const key = "w" + C.weekIdx(C.today());
     const done = (C.S.shop = C.S.shop || {})[key] || [];
     const box = $("shopChecks"); if (!box) return;
     box.innerHTML = `<div class="eyebrow">ติ๊กตอนซื้อ (รีเซ็ตทุกสัปดาห์)</div><div class="chips">${SHOPPING.filter((s) => s[1]).map((s, i) => `<button type="button" class="chip ${done.includes(i) ? "on" : ""}" data-shop="${i}">${done.includes(i) ? "✓ " : ""}${s[0]} ${s[1]}</button>`).join("")}</div>`;
     box.onclick = (e) => { const i = e.target.closest("[data-shop]")?.dataset.shop; if (i == null) return; const arr = (C.S.shop[key] = C.S.shop[key] || []); const n = Number(i); const at = arr.indexOf(n); at >= 0 ? arr.splice(at, 1) : arr.push(n); C.save(); renderShopChecks(); };
   }
 
-  window.Extras = { light() { renderWater(); renderHeat(); renderTrend(); renderWeekly(); }, renderBody, renderShopChecks, renderRoadmap };
-  window.Extras.light(); renderBody(); renderShopChecks(); renderRoadmap();
+  window.Extras = { light() { renderWater(); renderHeat(); renderTrend(); renderWeekly(); renderBodyComp(); renderRoadmap(); }, renderBody, renderShopChecks, renderRoadmap };
+  window.Extras.light(); renderBody(); renderShopChecks();
 })();

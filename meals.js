@@ -1,15 +1,16 @@
 // ข้อมูลอาหาร — แคลอรี่คิดจากปริมาณวัตถุดิบจริงต่อกล่อง (ค่าต่อ 100 ก. ในตาราง INGREDIENTS)
 // ค่าเมนูร้าน (MENU) เป็นค่ากลางที่นิยมอ้างอิงในไทย ของจริงต่างตามร้าน ±20–30%
 
-// เป้าอาหารเปลี่ยนตามช่วงของแผน 3 ปี (mode มาจาก app.js plan())
+// เป้าอาหารเปลี่ยนตามช่วงของแผน 2 ปี (mode มาจาก app.js plan())
+// kcal ไม่ตายตัว: app.js คำนวณจากน้ำหนักเฉลี่ย 7 วัน ส่วนสูง อายุ และอัตราลด/เพิ่มของช่วง (targetFor)
 const TARGETS = {
-  cut:      { kcal: 1900, kcalMin: 1800, kcalMax: 2000, protein: 140, budget: 150, th: "ลดไขมัน" },
-  maintain: { kcal: 2300, kcalMin: 2200, kcalMax: 2400, protein: 150, budget: 160, th: "รักษาน้ำหนัก" },
-  bulk:     { kcal: 2700, kcalMin: 2600, kcalMax: 2850, protein: 160, budget: 180, th: "สร้างกล้าม (lean bulk)" },
-  minicut:  { kcal: 2100, kcalMin: 2000, kcalMax: 2200, protein: 165, budget: 160, th: "ตัดไขมันสั้นๆ" },
-  cut2:     { kcal: 2200, kcalMin: 2100, kcalMax: 2300, protein: 170, budget: 170, th: "ลีนทั้งตัว" },
+  cut:       { protein: 140, budget: 150, th: "ลดไขมัน" },
+  dietbreak: { protein: 140, budget: 160, th: "พักไดเอท (กินระดับรักษา)" },
+  maintain:  { protein: 140, budget: 160, th: "รักษาน้ำหนัก" },
+  bulk:      { protein: 150, budget: 180, th: "สร้างกล้าม (lean bulk)" },
+  minicut:   { protein: 150, budget: 160, th: "ตัดไขมันสั้นๆ" },
 };
-let TARGET = TARGETS.cut;
+let TARGET = { ...TARGETS.cut, kcal: 1850, kcalMin: 1750, kcalMax: 1950 };
 
 // ต่อ 100 ก. (หรือต่อหน่วยตามที่ระบุ) — ใช้โหมด "ชั่งเอง"
 const INGREDIENTS = [

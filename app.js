@@ -1,37 +1,34 @@
 // Coach 365 — ข้อมูลทั้งหมดเก็บใน localStorage ของเครื่อง
 (() => {
-  const START = new Date(2026, 8, 28); // จันทร์ 28 ก.ย. 2569
+  const START = new Date(2026, 9, 7), START_TH = "พุธ 7 ต.ค."; // วันที่ 1 ของแผน 2 ปี
   const DAY = 86400000;
-  const START_WEIGHT = 100, GOAL_WEIGHT = 78, SAVE_GOAL = 100000, PASSIVE_GOAL_DAY = 300;
-  const GOAL_END = new Date(2027, 8, 27);
+  // สัปดาห์นับแบบจันทร์–อาทิตย์ (สัปดาห์ 0 = สัปดาห์ที่มีวันเริ่ม) ให้แผนอาหาร รายการซื้อของ deload ตรงกับวัน meal prep อาทิตย์
+  const START_OFF = (START.getDay() + 6) % 7;
+  const weekIdx = (d) => Math.floor((Math.max(0, Math.round((d - START) / DAY)) + START_OFF) / 7);
+  const SAVE_GOAL = 100000, PASSIVE_GOAL_DAY = 300;
+  const GOAL_END = new Date(2027, 9, 6); // เป้าเงินออม 1 ปี
   const STEPS = [5000, 7000, 9000, 10000, 11000, 12000, 12000, 12000, 12000, 12000, 12000, 12000];
-  const TOTAL_DAYS = 1095;
-  // แผน 3 ปี: [เดือนเริ่ม, เดือนจบ, ชื่อ, โหมดอาหาร, โปรแกรมเวท, โน้ต]
+  const BASE_DAYS = 730;
+  // แผน 2 ปี: ปี 1 ลดไขมันจนลีน (รักษา/สร้างกล้ามไปด้วย) → ปี 2 สร้างกล้าม
+  // [เดือนเริ่ม, เดือนจบ, ชื่อ, โหมดอาหาร, โปรแกรมเวท, โน้ต, น้ำหนักเปลี่ยน %/สัปดาห์ (ลบ = ลด)]
   const PHASES = [
-    [1, 3, "ปี 1 · ฐาน", "cut", "AB", "เน้นท่าถูก Full body 3 วัน สร้างนิสัย"],
-    [4, 6, "ปี 1 · ลดไขมัน", "cut", "UL", "Upper/Lower 4 วัน เพิ่มน้ำหนักทุกสัปดาห์"],
-    [7, 9, "ปี 1 · ลดไขมัน + กล้าม", "cut", "UL", "+HIIT 10 นาที 2 ครั้ง/สัปดาห์"],
-    [10, 12, "ปี 1 · ขัดเกลา", "cut", "UL", "ถึง 78–80 กก. Deload ทุก 6–8 สัปดาห์"],
-    [13, 15, "ปี 2 · รีเซ็ตเมตาบอลิซึม", "maintain", "UL", "กินเพิ่มทีละ 100 kcal/สัปดาห์ น้ำหนักนิ่ง แรงขึ้น"],
-    [16, 21, "ปี 2 · สร้างกล้าม", "bulk", "PPL", "Push/Pull/Legs 5 วัน +0.5 กก./เดือน (ไม่เกิน +1)"],
-    [22, 24, "ปี 2 · ตัดไขมันสั้น", "minicut", "PPL", "4–6 สัปดาห์ เห็นกล้ามที่สร้างมา แล้วกลับไป maintain"],
-    [25, 30, "ปี 3 · สร้างกล้ามรอบ 2", "bulk", "PPL2", "เซ็ตหนัก 5×5 ท่าหลัก น้ำหนักบาร์ต้องเพิ่ม"],
-    [31, 34, "ปี 3 · ลีนทั้งตัว", "cut2", "PPL2", "ลด 0.5 กก./สัปดาห์ รักษากล้ามด้วยโปรตีน 170 ก."],
-    [35, 36, "ปี 3 · รักษาระดับ", "maintain", "PPL2", "รูปร่างเป้าหมาย: ไขมัน 12–15% กล้ามเห็นชัด"],
+    [1, 3, "ปี 1 · วางฐาน", "cut", "AB", "Full body 3 วัน เน้นท่าถูก สร้างนิสัย ช่วงนี้ลดได้เร็วสุดของแผน", -0.9],
+    [4, 6, "ปี 1 · ลดไขมัน", "cut", "UL", "Upper/Lower 4 วัน น้ำหนักบาร์ห้ามลด = กล้ามไม่หาย", -0.8],
+    [7, 9, "ปี 1 · ลดไขมัน + คมขึ้น", "cut", "UL", "+HIIT 10 นาที วันพักกลางสัปดาห์ (ไม่บังคับ) เริ่มเห็นเส้นท้องบน", -0.7],
+    [10, 12, "ปี 1 · ลีน", "cut", "UL", "ลดช้าลงเพื่อรักษากล้าม เป้าไขมัน 10–15% เห็นกล้ามท้อง", -0.5],
+    [13, 14, "ปี 2 · เปลี่ยนเข้าโหมดสร้าง", "maintain", "UL", "กินระดับรักษาน้ำหนัก น้ำหนักนิ่ง แรงขึ้น", 0],
+    [15, 21, "ปี 2 · สร้างกล้าม", "bulk", "PPL", "Push/Pull/Legs 5 วัน น้ำหนักขึ้น 0.3–0.5 กก./เดือน ไม่เกินนี้", 0.17],
+    [22, 23, "ปี 2 · ตัดไขมันสั้น", "minicut", "PPL2", "6–8 สัปดาห์ กลับไปไขมัน 10–12% โชว์กล้ามที่สร้างมา", -0.6],
+    [24, 24, "ปี 2 · รักษาระดับ", "maintain", "PPL2", "รูปร่างเป้าหมาย: ไขมัน 10–12% กล้ามชัด", 0],
   ];
-  // เส้นทางน้ำหนักเป้า (วัน, กก.)
-  const GOAL_PATH = [[0, 100], [365, 78], [455, 79], [640, 84], [730, 82.5], [910, 87], [1030, 82], [1095, 82]];
-  function goalAt(day) {
-    day = Math.max(0, Math.min(TOTAL_DAYS, day));
-    for (let i = 1; i < GOAL_PATH.length; i++) { const [d0, w0] = GOAL_PATH[i - 1], [d1, w1] = GOAL_PATH[i]; if (day <= d1) return w0 + ((w1 - w0) * (day - d0)) / (d1 - d0); }
-    return GOAL_PATH[GOAL_PATH.length - 1][1];
-  }
+  // สัปดาห์พักไดเอท (นับจาก 0): กินระดับรักษาน้ำหนัก 1 สัปดาห์ท้ายเดือน 3, 6, 9 ช่วยให้ลดต่อได้ทั้งปีโดยไม่พัง
+  const DIET_BREAKS = [12, 25, 38];
   const KEY = "coach365";
-  const CHECKS = [["if", "ปิดครัวตามเวลา (IF)"], ["protein", "โปรตีนถึง 140 ก."], ["workout", "ออกกำลังกายตามแผน"], ["posture", "จัดบุคลิก 10 นาที"], ["meditate", "นั่งสมาธิ เช้า + ก่อนนอน"], ["rest", "พักผ่อนครบ 3 ชม."], ["room", "เก็บห้อง 10 นาที"], ["sleep", "นอนก่อน 23:30"]];
+  const CHECKS = [["if", "ปิดครัวตามเวลา (IF)"], ["protein", "โปรตีนถึงเป้า"], ["workout", "ออกกำลังกายตามแผน"], ["posture", "จัดบุคลิก 10 นาที"], ["meditate", "นั่งสมาธิ เช้า + ก่อนนอน"], ["rest", "พักผ่อนครบ 3 ชม."], ["room", "เก็บห้อง 10 นาที"], ["sleep", "นอนก่อน 23:30"]];
 
   // rest: true = นับเป็นเวลาพักผ่อน (รวม 3 ชม./วัน)
   const REMINDERS = [
-    { id: "wake", time: "07:00", days: "daily", msg: "ตื่น! ดื่มน้ำ 500 มล." },
+    { id: "wake", time: "07:00", days: "daily", msg: "ตื่น! เข้าห้องน้ำ → ชั่งน้ำหนัก → ดื่มน้ำ 500 มล." },
     { id: "meditate", time: "07:05", days: "daily", msg: "นั่งสมาธิ 10 นาที (เปิดตัวจับเวลาในแอป)" },
     { id: "posture", time: "07:15", days: "daily", msg: "จัดบุคลิก 10 นาที (ท่าในแท็บเวท)" },
     { id: "train", time: "07:25", days: "weekday", msg: "ได้เวลาออกกำลังกาย 30 นาที เปิดแอปดูท่าวันนี้" },
@@ -47,16 +44,26 @@
     { id: "meditate2", time: "23:00", days: "daily", msg: "สมาธิก่อนนอน 5 นาที + จด 3 บรรทัด แล้ววางมือถือ" },
     { id: "sleep", time: "23:15", days: "daily", msg: "ได้เวลานอน" },
     { id: "side", time: "09:00", days: "SA", msg: "งานเสริม 3 ชั่วโมง: หาลูกค้า / ทำงาน / พอร์ต" },
-    { id: "weigh", time: "08:00", days: "SU", msg: "ชั่งน้ำหนัก วัดรอบเอว (ถ่ายรูปทุกต้นเดือน)" },
+    { id: "weigh", time: "08:00", days: "SU", msg: "ชั่งน้ำหนัก วัดรอบเอว (อาทิตย์แรกของเดือน: วัดรอบคอ + ถ่ายรูป)" },
     { id: "prep", time: "14:00", days: "SU", msg: "Meal prep: อกไก่ + ไข่ต้มทั้งสัปดาห์" },
     { id: "money", time: "09:00", days: "M1", msg: "โอนเงินออม + ลงทุน แล้วบันทึกในแอป" },
   ];
 
   // ---------- state ----------
-  const def = () => ({ logs: {}, money: [], passiveMonthly: 0, rem: Object.fromEntries(REMINDERS.map((r) => [r.id, true])), fired: {} });
+  // profile: ส่วนสูง/อายุใช้คำนวณแคลอรี่และไขมัน · goalW 60 ตามที่ตั้งไว้ แอปจะเทียบกับน้ำหนักที่ไขมันถึงเป้าจริง
+  // kcalAdj = ปรับแคลอรี่จากผลจริงรายสัปดาห์ · cutExtend = สัปดาห์ที่ลดต่อเพราะยังไม่ลีนพอก่อนเริ่มปี 2
+  const def = () => ({ logs: {}, money: [], passiveMonthly: 0, rem: Object.fromEntries(REMINDERS.map((r) => [r.id, true])), fired: {},
+    profile: { height: null, age: null, goalW: 60, goalBf: 12, startW: null }, kcalAdj: 0, cutExtend: 0 });
   let S = def();
+  function normalize() {
+    S.profile = Object.assign(def().profile, S.profile);
+    // ย้ายจากแผน 3 ปีเดิม (เริ่ม 28 ก.ย.): เลขสัปดาห์เลื่อน รีเซ็ตรอบ deload
+    if (S.planVer !== 2) { delete S.deloadAnchor; delete S.stallDismissed; S.planVer = 2; }
+  }
   try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(def(), JSON.parse(raw)); } catch (e) {}
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast("บันทึกไม่ได้: พื้นที่เครื่องเต็มหรือถูกบล็อก"); } };
+  normalize();
+  let cache = {}; // ค่าที่คำนวณจาก logs (น้ำหนักตั้งต้น เส้นเป้า) ล้างทุกครั้งที่บันทึก
+  const save = () => { cache = {}; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast("บันทึกไม่ได้: พื้นที่เครื่องเต็มหรือถูกบล็อก"); } };
 
   // ---------- helpers ----------
   const $ = (id) => document.getElementById(id);
@@ -70,24 +77,80 @@
   let toastT;
   function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2200); }
 
+  // ---------- ร่างกาย: น้ำหนักตั้งต้น เป้า แคลอรี่ ----------
+  const total = () => BASE_DAYS + (S.cutExtend || 0) * 7;
+  const y1End = () => 365 + (S.cutExtend || 0) * 7;
+  // วันตามแผนหลัก: ช่วงลดต่อ (cutExtend) ใช้แผนวันสุดท้ายของปี 1 แล้วปี 2 เลื่อนออกไป
+  const planDay = (i) => (i >= 365 && i < y1End() ? 364 : i >= y1End() ? i - (S.cutExtend || 0) * 7 : i);
+  const phaseOf = (j) => { const m = Math.min(24, Math.floor(j / 30.4) + 1); return PHASES.find(([a, b]) => m >= a && m <= b) || PHASES[PHASES.length - 1]; };
+  // น้ำหนักวันเริ่ม: ตั้งเองในโปรไฟล์ หรือที่ชั่งล่าสุดก่อน/วันเริ่ม หรือครั้งแรกหลังวันเริ่ม
+  function startW() {
+    if (cache.sw != null) return cache.sw;
+    const s = iso(START), ks = Object.keys(S.logs).filter((k) => S.logs[k].weight != null).sort();
+    const k = ks.filter((x) => x <= s).pop() ?? ks.find((x) => x > s);
+    return (cache.sw = Number(S.profile.startW) || S.logs[k]?.weight || 100);
+  }
+  const goalW = () => Number(S.profile.goalW) || 60;
+  // เฉลี่ยน้ำหนัก 7 วันล่าสุด (ตัดผลน้ำ/เกลือรายวัน)
+  function trendWeight() {
+    const t = today(), ws = [];
+    for (let k = 0; k < 7; k++) { const w = S.logs[iso(new Date(t - k * DAY))]?.weight; if (w != null) ws.push(w); }
+    return ws.length ? ws.reduce((a, b) => a + b, 0) / ws.length : lastWeight();
+  }
+  // พลังงานที่ใช้ต่อวันโดยประมาณ: Mifflin-St Jeor (ชาย) × 1.45 (งานนั่งโต๊ะ + เดิน + เวท)
+  const tdee = (w) => (10 * w + 6.25 * (Number(S.profile.height) || 170) - 5 * (Number(S.profile.age) || 25) + 5) * 1.45;
+  // 1 กก./สัปดาห์ ≈ 1,100 kcal/วัน · ไม่ต่ำกว่า 1,500 kcal
+  function targetFor(mode, rate, w) {
+    w = w ?? trendWeight() ?? startW();
+    const base = tdee(w) + (mode === "bulk" ? 250 : mode === "cut" || mode === "minicut" ? (rate / 100) * w * 1100 : 0);
+    const kcal = Math.round(Math.max(1500, base + (S.kcalAdj || 0)) / 50) * 50;
+    return { ...TARGETS[mode], kcal, kcalMin: kcal - 100, kcalMax: kcal + 100, tdee: Math.round(tdee(w) / 50) * 50 };
+  }
+  // เส้นน้ำหนักเป้ารายสัปดาห์: ปี 1 ลดตามอัตราของช่วง (ไม่ต่ำกว่าเป้า สัปดาห์พักไดเอทคงที่) ปี 2 ตามอัตราของช่วง
+  function path() {
+    if (cache.path) return cache.path;
+    const gw = goalW(), weeks = Math.ceil(total() / 7);
+    let w = startW(); const pts = [w];
+    for (let k = 0; k < weeks; k++) {
+      const j = planDay(Math.min(total() - 1, k * 7 + 3)), y1 = j < 365;
+      const r = y1 && DIET_BREAKS.includes(k) ? 0 : phaseOf(j)[6];
+      w *= 1 + r / 100;
+      if (y1 && r < 0) w = Math.max(gw, w);
+      pts.push(w);
+    }
+    return (cache.path = pts);
+  }
+  function goalAt(day) {
+    const pts = path(), x = Math.max(0, Math.min(total(), day)) / 7, k = Math.floor(x);
+    return k >= pts.length - 1 ? pts[pts.length - 1] : pts[k] + (pts[k + 1] - pts[k]) * (x - k);
+  }
+
   function plan(d) {
-    const i = Math.max(0, Math.min(TOTAL_DAYS - 1, idx(d)));
-    const month = Math.min(36, Math.floor(i / 30.4) + 1), year = Math.ceil(month / 12);
+    const i = Math.max(0, Math.min(total() - 1, idx(d))), j = planDay(i);
+    const extra = i >= 365 && i < y1End(); // ลดต่อเพราะยังไม่ลีนพอ
+    const month = Math.min(24, Math.floor(j / 30.4) + 1), year = j < 365 ? 1 : 2;
     const pi = PHASES.findIndex(([a, b]) => month >= a && month <= b), P = PHASES[pi] || PHASES[PHASES.length - 1];
-    const phase = pi + 1, prog = P[4], mode = P[3];
+    const phase = pi + 1, prog = P[4];
     const wd = (d.getDay() + 6) % 7; // 0 = จันทร์
-    const week = Math.floor(i / 7);
+    const week = Math.floor((i + START_OFF) / 7);
+    const dietBreak = !extra && year === 1 && DIET_BREAKS.includes(week);
+    const mode = dietBreak ? "dietbreak" : P[3], rate = dietBreak ? 0 : P[6];
     let session = null, activity;
-    if (prog === "AB") { if ([0, 2, 4].includes(wd)) session = (week * 3 + [0, 2, 4].indexOf(wd)) % 2 === 0 ? "A" : "B"; }
+    // A/B สลับตามจำนวนวันเวท (จ/พ/ศ) ที่ผ่านมาตั้งแต่วันเริ่ม วันเวทแรกได้ A เสมอไม่ว่าเริ่มวันไหน
+    if (prog === "AB") { if ([0, 2, 4].includes(wd)) { let n = 0; for (let k = 0; k < i; k++) if ([0, 2, 4].includes((START_OFF + k) % 7)) n++; session = n % 2 === 0 ? "A" : "B"; } }
     else if (prog === "UL") session = { 0: "U1", 1: "L1", 3: "U2", 4: "L2" }[wd] || null;
     else if (prog === "PPL") session = { 0: "PUSH", 1: "PULL", 2: "LEGS", 4: "U2", 5: "L2" }[wd] || null;
     else session = { 0: "PUSH2", 1: "PULL2", 2: "LEGS2", 4: "U1", 5: "L1" }[wd] || null;
     if (session) activity = "เวท " + SESSIONS[session].name;
     else activity = wd === 6 ? "เดินยาว + Meal prep" : wd === 5 ? "เดินยาว 60–90 นาที" : "เดิน 20 นาที + ยืด";
-    const target = TARGETS[mode];
+    // วันนี้/ที่ผ่านมาใช้น้ำหนักจริง วันในอนาคตใช้น้ำหนักตามเส้นเป้า
+    const target = targetFor(mode, rate, iso(d) > iso(today()) ? goalAt(i) : null);
     const N = S.deloadEvery || 7, deload = ((week - (S.deloadAnchor || 0)) % N + N) % N === N - 1;
     const cycleWeek = (((week - (S.deloadAnchor || 0)) % N) + N) % N + 1;
-    return { day: i + 1, month, year, phase, phaseName: P[2], phaseNote: deload ? "สัปดาห์ Deload: น้ำหนัก 60% แค่ 2 เซ็ต ทำท่าให้สวย ให้ร่างกายซ่อม" : P[5], mode, modeTh: target.th, target, session, activity, deload, cycleWeek, cycleLen: N, week,
+    const phaseNote = deload ? "สัปดาห์ Deload: น้ำหนัก 60% แค่ 2 เซ็ต ทำท่าให้สวย ให้ร่างกายซ่อม"
+      : dietBreak ? "สัปดาห์พักไดเอท: กินระดับรักษาน้ำหนัก (เพิ่มข้าว) เวทเต็มที่ น้ำหนักขึ้น 0.5–1 กก. เป็นน้ำในกล้าม ไม่ใช่ไขมัน"
+      : extra ? "ไขมันยังเกิน 15% ลดต่อแบบช้าก่อนเริ่มสร้างกล้าม" : P[5];
+    return { day: i + 1, dayOfYear: j + 1 - (year - 1) * 365, month, year, phase, phaseName: extra ? `ปี 1 · ลีน (ลดต่อ +${S.cutExtend} สัปดาห์)` : P[2], phaseNote, mode, rate, modeTh: target.th, target, session, activity, deload, dietBreak, extra, prog, cycleWeek, cycleLen: N, week,
       steps: year === 1 ? STEPS[Math.min(11, month - 1)] : 10000, window: month === 1 ? "12:00–22:00" : mode === "bulk" ? "10:00–20:00" : "12:00–20:00", goal: goalAt(i) };
   }
 
@@ -108,10 +171,10 @@
   function renderHeader() {
     const t = today(), p = plan(t), i = idx(t);
     TARGET = p.target;
-    $("dayLabel").textContent = i < 0 ? `อีก ${-i} วันเริ่ม` : `ปี ${p.year} · วันที่ ${i + 1 - (p.year - 1) * 365}`;
-    $("phaseLabel").textContent = `${p.phaseName} · เดือน ${p.month}/36 · ${p.modeTh}${p.deload ? " · 🔋 DELOAD" : ""}`;
-    const last = lastWeight();
-    const pct = last == null ? 0 : p.year === 1 ? Math.max(0, Math.min(1, (START_WEIGHT - last) / (START_WEIGHT - GOAL_WEIGHT))) : Math.max(0, Math.min(1, (i - (p.year - 1) * 365) / 365));
+    $("dayLabel").textContent = i < 0 ? (i === -1 ? "วันซ้อมมือ · พรุ่งนี้เริ่ม" : `อีก ${-i} วันเริ่ม`) : p.extra ? `ปี 1 · ลดต่อวันที่ ${i - 364}` : `ปี ${p.year} · วันที่ ${p.dayOfYear}`;
+    $("phaseLabel").textContent = `${p.phaseName} · เดือน ${p.month}/24${p.dietBreak ? " · พักไดเอท" : ""}${p.deload ? " · 🔋 DELOAD" : ""}`;
+    const last = lastWeight(), sw = startW(), gw = goalW();
+    const pct = last == null ? 0 : p.year === 1 ? (sw > gw ? Math.max(0, Math.min(1, (sw - last) / (sw - gw))) : 1) : Math.max(0, Math.min(1, p.dayOfYear / 365));
     const C = 2 * Math.PI * 26;
     $("goalRing").innerHTML = `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="none" stroke="var(--sunk)" stroke-width="7"/><circle cx="32" cy="32" r="26" fill="none" stroke="var(--good)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(C * pct).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/><text x="32" y="37" text-anchor="middle" font-size="14" font-family="IBM Plex Mono,monospace" fill="var(--ink)">${Math.round(pct * 100)}%</text></svg>`;
   }
@@ -128,7 +191,7 @@
 
   // มื้อตามแผนของวันนี้ (จาก meals.js)
   function plannedMeal(slot) {
-    const i = Math.max(0, idx(today())), wk = WEEKS[Math.floor(i / 7) % 2], row = wk[(today().getDay() + 6) % 7];
+    const wk = WEEKS[weekIdx(today()) % 2], row = wk[(today().getDay() + 6) % 7];
     return mealRef(row[slot]);
   }
   function addMeal(items, src, photoId = null) {
@@ -152,7 +215,7 @@
     A.push({ t: "07:05", title: "นั่งสมาธิ 10 นาที", sub: "หายใจเข้า 4 ออก 6 แค่นั่งเฉยๆ", done: (l.meditateMin || 0) >= 10, btn: "เริ่มเลย", act: () => startMed(10) });
     A.push({ t: "07:15", title: "จัดบุคลิก 10 นาที", sub: "3 ท่า แก้คอยื่น ไหล่ห่อ", done: !!l.posture, btn: "▶ เริ่มเลย", act: () => startWorkout("P"), alt: "ทำแล้ว", altAct: () => setFlag("posture", "บุคลิกดีขึ้นทุกวัน 👍") });
     if (p.session) A.push({ t: "07:25", title: (p.deload ? "🔋 Deload: " : "เวท ") + SESSIONS[p.session].name, sub: l.wStart?.[p.session] ? "ค้างไว้อยู่ กดเล่นต่อได้เลย" : p.deload ? "สัปดาห์พักฟื้น น้ำหนัก 60% 2 เซ็ต เสร็จใน 20 นาที" : "30 นาที 5 ท่า แอปจับเวลาพักและบอกน้ำหนักให้", done: !!l.workout, btn: l.wStart?.[p.session] ? "▶ เล่นต่อ" : "▶ เริ่มเลย", act: () => startWorkout(p.session), alt: "ดูท่าก่อน", altAct: () => { $("sessionPick").value = ""; show("train"); } });
-    else if (wd === 2 || wd === 4) A.push({ t: "07:25", title: p.month >= 7 ? "HIIT 10 นาที" : "เดิน 20 นาที (หรือ HIIT 10 นาที)", sub: p.month >= 7 ? "แรงกระแทกต่ำ ไม่ต้องกระโดด แอปบอกท่าและจับเวลาให้" : "วันพักเวท เดินเบาๆ พอ อยากลอง HIIT ก็ได้", done: !!l.walkAm || !!l.hiit, btn: p.month >= 7 ? "▶ เริ่ม HIIT" : "เดินแล้ว", act: p.month >= 7 ? startHiit : () => setFlag("walkAm", "เยี่ยม 🚶"), alt: p.month >= 7 ? "เดินแทน" : "▶ HIIT", altAct: p.month >= 7 ? () => setFlag("walkAm", "เยี่ยม 🚶") : startHiit });
+    else if (wd >= 2 && wd <= 4) A.push({ t: "07:25", title: p.month >= 7 ? "HIIT 10 นาที" : "เดิน 20 นาที (หรือ HIIT 10 นาที)", sub: p.month >= 7 ? "แรงกระแทกต่ำ ไม่ต้องกระโดด แอปบอกท่าและจับเวลาให้" : "วันพักเวท เดินเบาๆ พอ อยากลอง HIIT ก็ได้", done: !!l.walkAm || !!l.hiit, btn: p.month >= 7 ? "▶ เริ่ม HIIT" : "เดินแล้ว", act: p.month >= 7 ? startHiit : () => setFlag("walkAm", "เยี่ยม 🚶"), alt: p.month >= 7 ? "เดินแทน" : "▶ HIIT", altAct: p.month >= 7 ? () => setFlag("walkAm", "เยี่ยม 🚶") : startHiit });
     else A.push({ t: "07:25", title: p.activity, sub: "วันพักเวท เดินเบาๆ พอ", done: !!l.walkAm, btn: "เดินแล้ว", act: () => setFlag("walkAm", "เยี่ยม 🚶") });
     const meal = (t, slot, title, need) => {
       const m = plannedMeal(slot);
@@ -164,10 +227,16 @@
     A.push({ t: "18:40", title: "ปิดครัว", sub: `ไม่กินอีกจนถึงพรุ่งนี้เที่ยง (IF ${p.window})`, done: !!l.if, btn: "ปิดครัวแล้ว 🔒", act: closeKitchen });
     A.push({ t: "18:45", title: `เดินให้ครบ ${fmt(target)} ก้าว`, sub: "ลงรถก่อน 1–2 ป้าย หรือเดินรอบย่าน", done: (l.steps || 0) >= target, btn: "ครบแล้ว", act: () => setSteps(target, `${fmt(target)} ก้าว เก่งมาก 🔥`), alt: "ใส่ตัวเลข", altAct: () => $("qSteps").scrollIntoView({ behavior: "smooth", block: "center" }) });
     A.push({ t: "22:00", title: "เก็บห้อง 10 นาที", sub: "ผ้าแห้งพับเก็บ ของวางที่เดิม", done: !!l.room, btn: "เก็บแล้ว", act: () => setFlag("room", "ห้องสะอาด สมองโล่ง ✨") });
-    if (wd === 0 || l.weight == null) A.push({ t: wd === 0 ? "08:00" : "22:05", title: wd === 0 ? "ชั่งน้ำหนัก + วัดรอบเอว" : "ชั่งน้ำหนัก", sub: "ตอนเช้าก่อนกินแม่นสุด แต่ตอนไหนก็ได้ดีกว่าไม่ชั่ง", done: l.weight != null, btn: "ใส่ตัวเลข", act: () => $("qWeight").scrollIntoView({ behavior: "smooth", block: "center" }) });
+    // วันแรก + ทุกอาทิตย์: วัดตัว (อาทิตย์แรกของเดือนวัดรอบคอด้วย ใช้คำนวณไขมัน)
+    const full = p.day === 1 || wd === 0, neck = p.day === 1 || (wd === 0 && today().getDate() <= 7);
+    if (full || l.weight == null) A.push({ t: p.day === 1 ? "07:00" : wd === 0 ? "08:00" : "22:05",
+      title: neck ? "ชั่งน้ำหนัก + วัดรอบเอว + รอบคอ" : full ? "ชั่งน้ำหนัก + วัดรอบเอว" : "ชั่งน้ำหนัก",
+      sub: full ? `หลังเข้าห้องน้ำ ก่อนกินดื่ม · เอววัดระดับสะดือ หายใจออกปกติ ไม่แขม่ว${neck ? " · คอวัดใต้ลูกกระเดือก" : ""}` : "ตอนเช้าก่อนกินแม่นสุด แต่ตอนไหนก็ได้ดีกว่าไม่ชั่ง",
+      done: l.weight != null && (!full || l.waist != null) && (!neck || l.neck != null), btn: "ใส่ตัวเลข",
+      act: () => (full ? $("logForm") : $("qWeight")).scrollIntoView({ behavior: "smooth", block: "center" }) });
     A.push({ t: "23:00", title: "สมาธิก่อนนอน 5 นาที", sub: "แล้ววางมือถือไกลเตียง", done: (l.meditateMin || 0) >= 15, btn: "เริ่มเลย", act: () => startMed(5) });
     A.push({ t: "23:15", title: "นอน", sub: "7.5 ชั่วโมง คือยาลดน้ำหนักที่ดีที่สุด", done: !!l.sleep, btn: "นอนแล้ว 😴", act: () => setFlag("sleep", "ฝันดี พรุ่งนี้เจอกัน") });
-    return A;
+    return A.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
   }
   let heroActs = [];
   function renderHero() {
@@ -177,13 +246,21 @@
     let a = A.find((x) => !x.done && x.t <= now) || A.find((x) => !x.done);
     heroActs = a ? [a.act, a.altAct] : [];
     const h = $("hero");
-    if (i >= TOTAL_DAYS) { h.innerHTML = `<div class="eyebrow">ครบ 3 ปี</div><h2>จบแผนแล้ว 🏆</h2><p>ตอนนี้คือคนใหม่แล้ว รักษาโปรแกรม PPL และโปรตีน 160 ก. ต่อไป</p>`; heroActs = []; return; }
+    if (i >= total()) { h.innerHTML = `<div class="eyebrow">ครบ 2 ปี</div><h2>จบแผนแล้ว 🏆</h2><p>ตอนนี้คือคนใหม่แล้ว รักษาโปรแกรม PPL โปรตีน 140 ก. และเดินวันละ 10,000 ก้าวต่อไป</p>`; heroActs = []; return; }
     if (i < 0) {
-      const w = todayLog().weight;
-      h.innerHTML = w == null
-        ? `<div class="eyebrow">เริ่มวันจันทร์ 28 ก.ย.</div><h2>พรุ่งนี้วันแรก</h2><p>คืนนี้ทำแค่ 2 อย่าง: ชั่งน้ำหนักตั้งต้น และตั้งปลุก 07:00</p><div class="row"><button class="btn" type="button" data-hero="0">ใส่น้ำหนักตั้งต้น</button></div>`
-        : `<div class="eyebrow">เริ่มวันจันทร์ 28 ก.ย.</div><h2>พร้อมแล้ว ✓ ${w.toFixed(1)} กก.</h2><p>ตั้งปลุก 07:00 แล้วนอนก่อน 23:15 พรุ่งนี้เปิดแอปแล้วทำตามการ์ดนี้ทีละอย่าง</p><div class="row"><button class="btn ghost" type="button" data-hero="0">ตั้งค่าแจ้งเตือน</button></div>`;
-      heroActs = [w == null ? () => $("qWeight").scrollIntoView({ behavior: "smooth", block: "center" }) : () => show("settings")];
+      // วันก่อนเริ่ม = วันซ้อมมือ: ลองทุกปุ่มได้ น้ำหนักที่ชั่งวันนี้ใช้เป็นน้ำหนักตั้งต้น เวทที่ลองเล่นใช้เป็น "ครั้งก่อน"
+      const needH = !S.profile.height, l = todayLog();
+      const steps = [
+        needH ? ["ใส่ส่วนสูง/อายุ", () => { show("settings"); $("p-height").focus(); }] : null,
+        l.weight == null ? ["ชั่งน้ำหนัก", () => $("qWeight").scrollIntoView({ behavior: "smooth", block: "center" })] : null,
+        !l.food?.length ? ["ถ่ายรูปมื้อเที่ยง", () => { show("food"); $("photoIn").click(); }] : null,
+        !l.workout ? ["▶ ลองเวท A เบาๆ", () => startWorkout("A")] : null,
+        ["ตั้งแจ้งเตือน", () => show("settings")],
+      ].filter(Boolean).slice(0, 2);
+      h.innerHTML = `<div class="eyebrow">วันซ้อมมือ · เริ่มจริง${i === -1 ? "พรุ่งนี้" : ` อีก ${-i} วัน`} (${START_TH})</div><h2>ลองกดทุกอย่างได้เลย</h2>`
+        + `<p>วันนี้ไม่นับในแผน ลองบันทึกอาหาร ชั่งน้ำหนัก เล่นเวทเบาๆ ให้คุ้นมือ น้ำหนักที่ชั่งวันนี้จะใช้เป็นน้ำหนักเริ่มต้น${i === -1 ? " · พรุ่งนี้ 07:00 ชั่ง + วัดเอว/คอ ก่อนกินดื่ม คืนนี้นอนก่อน 23:15" : ""}</p>`
+        + `<div class="row">${steps.map(([t], k) => `<button class="btn ${k ? "ghost" : ""}" type="button" data-hero="${k}">${t}</button>`).join("")}</div>`;
+      heroActs = steps.map((s) => s[1]);
       return;
     }
     if (!a) { h.innerHTML = `<div class="eyebrow">วันที่ ${i + 1}</div><h2>วันนี้ครบทุกอย่างแล้ว 🎉</h2><p>ไม่ต้องทำอะไรเพิ่ม ไปพักได้เลย</p>`; return; }
@@ -212,7 +289,7 @@
   let qw = null;
   function renderQuick() {
     const l = todayLog();
-    qw = l.weight ?? lastWeight() ?? START_WEIGHT;
+    qw = l.weight ?? lastWeight() ?? startW();
     $("qWeight").textContent = qw.toFixed(1);
     $("qWeightOk").textContent = l.weight != null ? "บันทึกแล้ว ✓" : "ใช้เลขนี้";
     $("qWeightOk").classList.toggle("ghost", l.weight != null);
@@ -224,13 +301,36 @@
   document.querySelector(".quick").addEventListener("click", (e) => {
     const w = e.target.closest("[data-w]")?.dataset.w;
     if (w) { qw = Math.round((qw + Number(w)) * 10) / 10; $("qWeight").textContent = qw.toFixed(1); buzz(10); return; }
-    if (e.target.id === "qWeightOk") { const l = todayLog(); l.weight = qw; save(); celebrate(l.weight < START_WEIGHT ? `บันทึก ${qw.toFixed(1)} กก. ลดไป ${(START_WEIGHT - qw).toFixed(1)} แล้ว` : `บันทึก ${qw.toFixed(1)} กก.`); refresh(); return; }
+    if (e.target.id === "qWeightOk") { const l = todayLog(); l.weight = qw; save(); const sw = startW(); celebrate(idx(today()) > 0 && qw < sw ? `บันทึก ${qw.toFixed(1)} กก. ลดไป ${(sw - qw).toFixed(1)} แล้ว` : `บันทึก ${qw.toFixed(1)} กก.`); refresh(); return; }
     const s = e.target.closest("[data-steps]")?.dataset.steps; if (!s) return;
     if (s === "custom") { $("f-steps").scrollIntoView({ behavior: "smooth", block: "center" }); $("f-steps").focus(); return; }
     setSteps(Number(s), Number(s) >= plan(today()).steps ? "ครบเป้าวันนี้ 🔥" : null);
   });
 
-  function refresh() { renderHeader(); renderHero(); renderChips(); renderQuick(); renderMedToday(); if ($("logDate").value === iso(today())) renderToday(); if (!document.querySelector('[data-view="food"]').hidden) window.Food?.render(); window.Extras?.light(); }
+  function refresh() { renderHeader(); renderHero(); renderChips(); renderQuick(); renderMedToday(); renderStats(); if ($("logDate").value === iso(today())) renderToday(); if (!document.querySelector('[data-view="food"]').hidden) window.Food?.render(); window.Extras?.light(); pushWidget(); }
+
+  // ---------- วิดเจ็ตหน้าจอโฮม (แอป Android) ----------
+  // เขียนสรุปวันนี้ + แผน 14 วันข้างหน้าลง Preferences ให้วิดเจ็ตอ่าน (ปิดแอปหลายวันวิดเจ็ตยังบอกโปรแกรมวันนั้นได้)
+  let widgetLast = "";
+  function pushWidget() {
+    const P = window.Capacitor?.isNativePlatform?.() && window.Capacitor.Plugins?.Preferences; if (!P) return;
+    try {
+      const t = today(), l = todayLog(), A = idx(t) < 0 || idx(t) >= total() ? [] : actions();
+      const eaten = (l.food || []).reduce((a, m) => a + m.items.reduce((b, x) => b + x.kcal, 0), 0);
+      const prot = (l.food || []).reduce((a, m) => a + m.items.reduce((b, x) => b + x.p, 0), 0);
+      const days = {};
+      for (let k = 0; k < 14; k++) {
+        const d = new Date(t.getTime() + k * DAY), i = idx(d), p = plan(d);
+        days[iso(d)] = { label: i < 0 ? "วันซ้อมมือ" : i >= total() ? "ครบ 2 ปี 🏆" : p.extra ? `ปี 1 · ลดต่อวันที่ ${i - 364}` : `ปี ${p.year} · วันที่ ${p.dayOfYear}`,
+          phase: p.phaseName + (p.deload ? " · Deload" : p.dietBreak ? " · พักไดเอท" : ""), act: p.activity, kcal: p.target.kcal, prot: p.target.protein, steps: p.steps, win: p.window };
+      }
+      // acts: วิดเจ็ตเลือก "ทำอะไรต่อ" ตามเวลาปัจจุบันเอง (อันแรกที่ยังไม่ทำและถึงเวลาแล้ว)
+      const snap = { v: 1, date: iso(t), acts: A.map((x) => [x.t, x.title.replace(/<[^>]*>/g, ""), x.done ? 1 : 0]),
+        eaten, prot, steps: l.steps || 0, weight: l.weight ?? lastWeight(), days };
+      const json = JSON.stringify(snap); if (json === widgetLast) return; widgetLast = json;
+      P.set({ key: "widget", value: JSON.stringify({ ...snap, updated: hmNow() }) }).catch(() => {});
+    } catch (e) {}
+  }
 
   function renderToday() {
     const d = parse($("logDate").value), p = plan(d);
@@ -238,7 +338,7 @@
       ["ก้าวเดิน", fmt(p.steps)], ["หน้าต่างกิน", p.window], ["ออกกำลังกาย", p.activity], ["แคลอรี่ / โปรตีน", `${fmt(p.target.kcal)} / ${p.target.protein} ก.`],
     ].map(([a, b]) => `<div class="tgt"><span class="eyebrow">${a}</span><b>${b}</b></div>`).join("") + `<div class="tgt" style="grid-column:1/-1"><span class="eyebrow">${p.phaseName} · น้ำหนักเป้าตอนนี้ ${p.goal.toFixed(1)} กก.</span><b style="font-size:15px">${p.phaseNote}</b></div>`;
     const e = S.logs[iso(d)] || {};
-    ["weight", "waist", "steps", "spend"].forEach((k) => ($("f-" + k).value = e[k] ?? ""));
+    ["weight", "waist", "neck", "steps", "spend"].forEach((k) => ($("f-" + k).value = e[k] ?? ""));
     $("f-note").value = e.note || "";
     CHECKS.forEach(([k]) => ($("c-" + k).checked = !!e[k]));
   }
@@ -306,8 +406,8 @@
   const num = (id) => { const v = $(id).value; return v === "" ? null : Number(v); };
   function saveForm(quiet) {
     const k = $("logDate").value, prev = S.logs[k] || {};
-    const e = Object.assign({}, prev, { weight: num("f-weight"), waist: num("f-waist"), steps: num("f-steps"), spend: num("f-spend"), note: $("f-note").value.trim() });
-    S.logs[k] = e; save(); renderHeader(); renderStats();
+    const e = Object.assign({}, prev, { weight: num("f-weight"), waist: num("f-waist"), neck: num("f-neck"), steps: num("f-steps"), spend: num("f-spend"), note: $("f-note").value.trim() });
+    S.logs[k] = e; save(); renderHeader(); renderStats(); window.Extras?.light();
     if (k === iso(today())) { renderHero(); renderChips(); renderQuick(); }
     $("saveStatus").textContent = "บันทึกแล้ว " + new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
     if (!quiet) toast("บันทึกแล้ว");
@@ -551,26 +651,30 @@
   function lastWeight() { const w = entries().filter((e) => e.weight != null); return w.length ? w[w.length - 1].weight : null; }
 
   function renderStats() {
-    const es = entries(), ws = es.filter((e) => e.weight != null), t = today();
-    // มุมมอง: ปีปัจจุบัน (365 วัน) หรือทั้ง 3 ปี
-    const yr = plan(t).year, full = chartFull, d0 = full ? 0 : (yr - 1) * 365, d1 = full ? TOTAL_DAYS : d0 + 365;
+    const es = entries(), ws = es.filter((e) => e.weight != null && idx(parse(e.date)) >= 0), t = today();
+    // มุมมอง: ปีปัจจุบัน หรือทั้ง 2 ปี (ปี 1 ยาวขึ้นถ้ามีช่วงลดต่อ)
+    const yr = plan(t).year, full = chartFull, e1 = y1End(), TT = total(), gw = goalW(), sw = startW();
+    const d0 = full || yr === 1 ? 0 : e1, d1 = full ? TT : yr === 1 ? e1 : TT;
     const W = 640, H = 260, L = 44, R = 16, T = 14, B = 34;
     const goals = []; for (let d = d0; d <= d1; d += 5) goals.push(goalAt(d));
-    const y0 = Math.floor((Math.min(...goals, ...ws.filter((e) => idx(parse(e.date)) >= d0 && idx(parse(e.date)) <= d1).map((e) => e.weight)) - 3) / 2) * 2;
-    const y1 = Math.ceil((Math.max(...goals, ...ws.filter((e) => idx(parse(e.date)) >= d0 && idx(parse(e.date)) <= d1).map((e) => e.weight)) + 3) / 2) * 2;
+    const inView = ws.filter((e) => idx(parse(e.date)) >= d0 && idx(parse(e.date)) <= d1).map((e) => e.weight);
+    const showGoal = full || yr === 1; // เส้นเป้าที่ตั้ง (เช่น 60 กก.) แสดงในมุมมองปี 1 และทั้ง 2 ปี
+    const y0 = Math.floor((Math.min(...goals, ...inView, ...(showGoal ? [gw] : [])) - 3) / 2) * 2;
+    const y1 = Math.ceil((Math.max(...goals, ...inView) + 3) / 2) * 2;
     const x = (i) => L + ((W - L - R) * (i - d0)) / (d1 - d0), y = (v) => T + ((H - T - B) * (y1 - v)) / (y1 - y0);
     let s = "";
-    const step = y1 - y0 > 16 ? 4 : 2;
+    const step = y1 - y0 > 32 ? 8 : y1 - y0 > 16 ? 4 : 2;
     for (let v = y0; v <= y1; v += step) s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${v}</text>`;
-    if (full) for (let yy = 0; yy <= 3; yy++) s += `<text x="${x(yy * 365)}" y="${H - 12}" text-anchor="${yy === 0 ? "start" : yy === 3 ? "end" : "middle"}" font-size="11" fill="var(--muted)">${yy ? "ปี " + yy + " จบ" : "เริ่ม"}</text>`;
+    if (full) [[0, "เริ่ม", "start"], [e1, "ปี 1 จบ", "middle"], [TT, "ปี 2 จบ", "end"]].forEach(([d, label, anchor]) => (s += `<text x="${x(d)}" y="${H - 12}" text-anchor="${anchor}" font-size="11" fill="var(--muted)">${label}</text>`));
     else for (let m = 0; m <= 12; m += 3) s += `<text x="${x(d0 + (m * 365) / 12)}" y="${H - 12}" text-anchor="middle" font-size="11" fill="var(--muted)">${m ? "เดือน " + (m + (yr - 1) * 12) : yr === 1 ? "เริ่ม" : "ปี " + yr}</text>`;
+    if (showGoal) s += `<line x1="${L}" x2="${W - R}" y1="${y(gw)}" y2="${y(gw)}" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="2 4"/><text x="${W - R}" y="${y(gw) - 6}" text-anchor="end" font-size="11" fill="var(--good)">เป้า ${fmt(gw, gw % 1 ? 1 : 0)} กก.</text>`;
     s += `<path d="${goals.map((g, i) => (i ? "L" : "M") + x(d0 + i * 5).toFixed(1) + " " + y(g).toFixed(1)).join(" ")}" fill="none" stroke="var(--target)" stroke-width="2" stroke-dasharray="6 5"/>`;
-    const pts = [[0, START_WEIGHT], ...ws.map((e) => [Math.max(0, Math.min(TOTAL_DAYS, idx(parse(e.date)))), e.weight])].filter((p) => p[0] >= d0 && p[0] <= d1);
+    const pts = [[0, sw], ...ws.map((e) => [Math.min(TT, idx(parse(e.date))), e.weight])].filter((p) => p[0] >= d0 && p[0] <= d1);
     if (pts.length > 1) s += `<path d="${pts.map((p, i) => (i ? "L" : "M") + x(p[0]).toFixed(1) + " " + y(p[1]).toFixed(1)).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>`;
     const lp = pts[pts.length - 1];
     if (lp) s += `<circle cx="${x(lp[0])}" cy="${y(lp[1])}" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>`;
     $("chart").innerHTML = s;
-    $("chartToggle").textContent = full ? "ดูเฉพาะปีนี้" : "ดูทั้ง 3 ปี";
+    $("chartToggle").textContent = full ? "ดูเฉพาะปีนี้" : "ดูทั้ง 2 ปี";
 
     const last = lastWeight(), tgtNow = goalAt(idx(t));
     const wk = es.filter((e) => (t - parse(e.date)) / DAY < 7 && e.steps != null);
@@ -580,7 +684,7 @@
     const pt = plan(t).steps;
     $("bodyStats").innerHTML =
       `<div class="stat ${last == null ? "" : last <= tgtNow + 0.5 ? "good" : last <= tgtNow + 2 ? "warn" : "bad"}"><span class="eyebrow">ล่าสุด</span><b>${fmt(last, 1)}</b><span class="small muted">เป้าตอนนี้ ${fmt(tgtNow, 1)}</span></div>` +
-      `<div class="stat ${last != null && last < START_WEIGHT ? "good" : ""}"><span class="eyebrow">จากวันแรก</span><b>${last == null ? "–" : (last <= START_WEIGHT ? "−" : "+") + fmt(Math.abs(START_WEIGHT - last), 1)}</b><span class="small muted">กก. · ${plan(t).modeTh}</span></div>` +
+      `<div class="stat ${last != null && last < sw ? "good" : ""}"><span class="eyebrow">จากวันแรก</span><b>${last == null ? "–" : (last <= sw ? "−" : "+") + fmt(Math.abs(sw - last), 1)}</b><span class="small muted">กก. · ${plan(t).modeTh}</span></div>` +
       `<div class="stat ${avg == null ? "" : avg >= pt ? "good" : avg >= pt * 0.8 ? "warn" : "bad"}"><span class="eyebrow">ก้าวเฉลี่ย 7 วัน</span><b>${fmt(avg)}</b><span class="small muted">เป้า ${fmt(pt)}</span></div>` +
       `<div class="stat ${streak >= 3 ? "good" : ""}"><span class="eyebrow">ต่อเนื่อง</span><b>${streak} วัน</b><span class="small muted">ห้ามพลาด 2 วันติด</span></div>`;
     const ck = (v) => `<span class="pill ${v ? "ok" : "no"}">${v ? "✓" : "✗"}</span>`;
@@ -596,6 +700,7 @@
       Notification.permission === "granted" ? "เปิดแล้ว: แอปจะเตือนตามเวลาขณะที่แอปยังเปิดค้างหรืออยู่เบื้องหลัง" :
       Notification.permission === "denied" ? "ถูกบล็อกไว้ ไปเปิดในการตั้งค่าเว็บไซต์ของเบราว์เซอร์" : "ยังไม่ได้เปิด";
     $("notifState").textContent = st;
+    renderProfile();
     $("enableNotif").hidden = !native() && (!notifSupported() || Notification.permission === "granted");
     $("reminderList").innerHTML = REMINDERS.map((r) => `<label class="rem"><span class="t">${r.time.split(",")[0]}${r.time.includes(",") ? "+" : ""}</span><span class="m">${r.msg}<br><span class="small muted">${dayText[r.days]}${r.time.includes(",") ? " · " + r.time.replace(/,/g, ", ") : ""}</span></span><input type="checkbox" data-rem="${r.id}" ${S.rem[r.id] !== false ? "checked" : ""}></label>`).join("");
   }
@@ -635,13 +740,14 @@
     const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Coach365//TH", "CALSCALE:GREGORIAN", "X-WR-CALNAME:Coach 365", "X-WR-TIMEZONE:Asia/Bangkok",
       "BEGIN:VTIMEZONE", "TZID:Asia/Bangkok", "BEGIN:STANDARD", "DTSTART:19700101T000000", "TZOFFSETFROM:+0700", "TZOFFSETTO:+0700", "TZNAME:ICT", "END:STANDARD", "END:VTIMEZONE"];
     const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
-    const startDay = today() > START ? today() : START;
+    const startDay = today() > START ? today() : START, endDay = new Date(START.getTime() + (total() - 1) * DAY);
+    const until = `${endDay.getFullYear()}${pad(endDay.getMonth() + 1)}${pad(endDay.getDate())}T235959Z`;
     REMINDERS.filter((r) => S.rem[r.id] !== false).forEach((r) => {
       r.time.split(",").forEach((t) => {
         const rule = r.days === "M1" ? "FREQ=MONTHLY;BYMONTHDAY=1" : "FREQ=" + (r.days === "daily" ? "DAILY" : "WEEKLY") + byday[r.days];
         const ds = `${startDay.getFullYear()}${pad(startDay.getMonth() + 1)}${pad(startDay.getDate())}T${t.replace(":", "")}00`;
         L.push("BEGIN:VEVENT", `UID:coach365-${r.id}-${t.replace(":", "")}@coach365`, `DTSTAMP:${stamp}`, `DTSTART;TZID=Asia/Bangkok:${ds}`, "DURATION:PT10M",
-          `RRULE:${rule};UNTIL=20270927T235959Z`, `SUMMARY:${r.msg}`, "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${r.msg}`, "TRIGGER:PT0M", "END:VALARM", "END:VEVENT");
+          `RRULE:${rule};UNTIL=${until}`, `SUMMARY:${r.msg}`, "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${r.msg}`, "TRIGGER:PT0M", "END:VALARM", "END:VEVENT");
       });
     });
     L.push("END:VCALENDAR");
@@ -660,25 +766,54 @@
 
   // ---------- AI key ----------
   $("aiKey").value = S.ai?.key || "";
-  $("aiModel").value = S.ai?.model || "claude-opus-5";
+  // รุ่นเก่าที่เคยเลือกไว้ → รุ่นใหม่ (Opus 5.5 ถูกกว่า Opus 5)
+  const MODEL_UP = { "claude-opus-5": "claude-opus-5-5", "claude-sonnet-5": "claude-sonnet-5-5" };
+  if (S.ai?.model && MODEL_UP[S.ai.model]) { S.ai.model = MODEL_UP[S.ai.model]; save(); }
+  $("aiModel").value = S.ai?.model || "claude-opus-5-5";
   $("aiSave").addEventListener("click", () => { S.ai = { key: $("aiKey").value.trim(), model: $("aiModel").value }; save(); toast(S.ai.key ? "บันทึก API key แล้ว" : "บันทึกแล้ว"); });
   $("aiClear").addEventListener("click", () => { S.ai = { model: $("aiModel").value }; $("aiKey").value = ""; save(); toast("ลบ key แล้ว"); });
   $("exportCsv").addEventListener("click", () => {
-    const head = ["date", "weight", "waist", "steps", "spend", ...CHECKS.map((c) => c[0]), "note"];
+    const head = ["date", "weight", "waist", "neck", "steps", "spend", ...CHECKS.map((c) => c[0]), "note"];
     const rows = entries().map((e) => head.map((h) => (h === "note" ? `"${String(e.note || "").replace(/"/g, '""')}"` : e[h] ?? "")).join(","));
     download(`coach365-logs-${iso(today())}.csv`, "﻿" + [head.join(","), ...rows].join("\n"), "text/csv");
   });
   $("importJson").addEventListener("change", async (ev) => {
     const f = ev.target.files[0]; if (!f) return;
-    try { const d = JSON.parse(await f.text()); if (!d.logs) throw 0; const key = S.ai?.key; S = Object.assign(def(), d); S.ai = { ...d.ai, key }; save(); renderAll(); toast("นำเข้าข้อมูลแล้ว"); }
+    try { const d = JSON.parse(await f.text()); if (!d.logs) throw 0; const key = S.ai?.key; S = Object.assign(def(), d); S.ai = { ...d.ai, key }; normalize(); save(); renderProfile(); renderAll(); toast("นำเข้าข้อมูลแล้ว"); }
     catch (e) { toast("ไฟล์ไม่ถูกต้อง ใช้ไฟล์ที่ส่งออกจากแอปนี้"); }
     ev.target.value = "";
   });
 
-  function renderAll() { renderHeader(); renderToday(); renderMoney(); renderStats(); renderSchedule(); refresh(); }
-  setInterval(() => { renderSchedule(); renderHero(); }, 60000);
+  // ---------- ข้อมูลร่างกาย (แท็บตั้งค่า) ----------
+  const PROF = ["height", "age", "goalW", "goalBf", "startW"];
+  function renderProfile() {
+    PROF.forEach((k) => { if (document.activeElement !== $("p-" + k)) $("p-" + k).value = S.profile[k] ?? ""; });
+    const T = plan(today()).target;
+    $("p-info").innerHTML = `ร่างกายใช้พลังงานวันละประมาณ <b class="num">${fmt(T.tdee)}</b> kcal (ที่ ${fmt(trendWeight() ?? startW(), 1)} กก.) · เป้าวันนี้ <b class="num">${fmt(T.kcal)}</b> kcal / โปรตีน ${T.protein} ก.`
+      + (S.kcalAdj ? ` · ปรับจากผลจริงแล้ว ${S.kcalAdj > 0 ? "+" : ""}${S.kcalAdj} kcal <button class="btn ghost small" type="button" id="adjReset">กลับไปใช้ค่าคำนวณ</button>` : "")
+      + (S.profile.height ? "" : `<br><b>ยังไม่ได้ใส่ส่วนสูง</b> ตอนนี้ใช้ค่ากลาง 170 ซม. / 25 ปี`);
+  }
+  document.querySelector('[data-view="settings"]').addEventListener("change", (e) => {
+    const k = e.target.id?.startsWith("p-") && e.target.id.slice(2); if (!PROF.includes(k)) return;
+    const v = Number(e.target.value), ok = e.target.value !== "" && Number.isFinite(v) && v > 0;
+    S.profile[k] = ok ? v : def().profile[k];
+    save(); renderProfile(); refresh(); toast("บันทึกข้อมูลร่างกายแล้ว");
+  });
+  $("p-info").addEventListener("click", (e) => { if (e.target.id === "adjReset") { S.kcalAdj = 0; save(); renderProfile(); refresh(); toast("กลับไปใช้แคลอรี่ที่คำนวณแล้ว"); } });
+
+  function renderAll() { renderHeader(); renderToday(); renderMoney(); renderStats(); renderSchedule(); renderProfile(); refresh(); }
+  // แอปค้างในพื้นหลังข้ามคืน: พอเปิดกลับมาให้ฟอร์มวันที่เป็นวันนี้ (ไม่งั้นจะบันทึกลงเมื่อวาน)
+  let shownDay = iso(today());
+  function rollover() {
+    const k = iso(today()); if (k === shownDay) return;
+    shownDay = k; ["logDate", "foodDate", "m-date"].forEach((id) => ($(id).value = k));
+    renderAll(); window.Food?.render();
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) rollover(); });
+  setInterval(() => { rollover(); renderSchedule(); renderHero(); pushWidget(); }, 60000);
   renderAll();
-  window.Coach = { get S() { return S; }, save, iso, today, toast, fmt, esc, START, addMeal, afterMeal, closeKitchen, plannedMeal, refresh, celebrate, plan, goalAt, PHASES, TOTAL_DAYS };
+  window.Coach = { get S() { return S; }, save, iso, today, toast, fmt, esc, START, weekIdx, addMeal, afterMeal, closeKitchen, plannedMeal, refresh, celebrate, plan, goalAt, PHASES, DIET_BREAKS,
+    total, y1End, startW, goalW, trendWeight, lastWeight, targetFor, show, renderProfile };
   const fromHash = () => { const h = location.hash.slice(1); if (["today", "food", "train", "money", "settings"].includes(h)) show(h); };
   addEventListener("hashchange", fromHash); addEventListener("DOMContentLoaded", fromHash);
 

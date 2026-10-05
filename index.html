@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Coach 365</title>
-<meta name="description" content="แอปโค้ชส่วนตัว 1 ปี: ลดน้ำหนัก เวทที่บ้าน ตรวจท่าด้วย AI บันทึกอาหาร เงินออม 100,000">
+<meta name="description" content="แอปโค้ชส่วนตัว 2 ปี: ปีแรกลดไขมันจนลีน ปีที่สองสร้างกล้าม เวทที่บ้าน ตรวจท่าด้วย AI บันทึกอาหาร เงินออม 100,000">
 <meta name="theme-color" content="#2B55D9">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -72,6 +72,7 @@
       <div class="fields">
         <label class="f">น้ำหนัก (กก.)<input id="f-weight" type="number" step="0.1" inputmode="decimal" placeholder="100.0"></label>
         <label class="f">รอบเอว (ซม.)<input id="f-waist" type="number" step="0.5" inputmode="decimal" placeholder="วันอาทิตย์"></label>
+        <label class="f">รอบคอ (ซม.)<input id="f-neck" type="number" step="0.5" inputmode="decimal" placeholder="ต้นเดือน"></label>
         <label class="f">ก้าวเดิน<input id="f-steps" type="number" step="100" inputmode="numeric" placeholder="0"></label>
         <label class="f">ค่ากิน (บาท)<input id="f-spend" type="number" step="1" inputmode="numeric" placeholder="≤150"></label>
       </div>
@@ -80,14 +81,15 @@
       <div class="row"><button class="btn ghost" type="submit">บันทึก</button><span class="muted small" id="saveStatus"></span></div>
     </form>
     <div class="card">
-      <div class="row between"><h2>น้ำหนักเทียบเป้า</h2><button class="btn ghost small" type="button" id="chartToggle">ดูทั้ง 3 ปี</button></div>
+      <div class="row between"><h2>น้ำหนักเทียบเป้า</h2><button class="btn ghost small" type="button" id="chartToggle">ดูทั้ง 2 ปี</button></div>
       <svg class="chart" id="chart" viewBox="0 0 640 260" role="img" aria-label="กราฟน้ำหนัก"></svg>
-      <div class="legend"><span><i class="lg-t"></i>เส้นเป้า (ลด → สร้างกล้าม → ลีน)</span><span><i class="lg-a"></i>น้ำหนักจริง</span></div>
+      <div class="legend"><span><i class="lg-t"></i>ความเร็วที่ปลอดภัย (ลดไขมัน → สร้างกล้าม)</span><span><i class="lg-g"></i>น้ำหนักเป้าที่ตั้ง</span><span><i class="lg-a"></i>น้ำหนักจริง</span></div>
       <div class="stats" id="bodyStats"></div>
       <div id="trend"></div>
     </div>
+    <div class="card" id="bodycomp"></div>
     <div class="card" id="body"></div>
-    <details class="card"><summary><h2 style="display:inline">แผน 3 ปี</h2></summary><div id="roadmap" class="roadmap"></div></details>
+    <details class="card"><summary><h2 style="display:inline">แผน 2 ปี</h2></summary><div id="roadmap" class="roadmap"></div></details>
     <details class="card"><summary><h2 style="display:inline">บันทึกย้อนหลัง</h2></summary><div class="tbl"><table>
       <thead><tr><th>วันที่</th><th class="num">กก.</th><th class="num">เอว</th><th class="num">ก้าว</th><th class="num">kcal</th><th>IF</th><th>โปรตีน</th><th>เวท</th></tr></thead>
       <tbody id="history"></tbody></table></div></details>
@@ -190,6 +192,18 @@
   <!-- ตั้งค่า -->
   <section data-view="settings" hidden>
     <div class="card">
+      <h2>ข้อมูลร่างกาย</h2>
+      <p class="small muted" style="margin:0">ใช้คำนวณแคลอรี่ ไขมันในร่างกาย และน้ำหนักที่คุณจะมีตอนลีนจริง</p>
+      <div class="fields">
+        <label class="f">ส่วนสูง (ซม.)<input id="p-height" type="number" step="0.5" min="120" max="220" inputmode="decimal" placeholder="เช่น 170"></label>
+        <label class="f">อายุ (ปี)<input id="p-age" type="number" step="1" min="13" max="90" inputmode="numeric" placeholder="25"></label>
+        <label class="f">น้ำหนักเป้า (กก.)<input id="p-goalW" type="number" step="0.5" inputmode="decimal" placeholder="60"></label>
+        <label class="f">ไขมันเป้า (%)<input id="p-goalBf" type="number" step="1" min="8" max="20" inputmode="numeric" placeholder="12"></label>
+        <label class="f">น้ำหนักวันเริ่ม (ว่าง = ที่ชั่งวันแรก)<input id="p-startW" type="number" step="0.1" inputmode="decimal" placeholder="อัตโนมัติ"></label>
+      </div>
+      <div class="small muted" id="p-info"></div>
+    </div>
+    <div class="card">
       <h2>แจ้งเตือน</h2>
       <p class="small muted" id="notifState"></p>
       <div class="row">
@@ -212,8 +226,8 @@
       <p class="small">ใช้ Claude API ด้วย API key ของคุณเอง สมัครและเติมเครดิตที่ console.anthropic.com แล้วสร้าง key มาวางที่นี่ key จะเก็บในเครื่องนี้เท่านั้น และไม่ถูกรวมในไฟล์สำรองข้อมูล</p>
       <label class="f">API key<input id="aiKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
       <label class="f">โมเดล<select id="aiModel">
-        <option value="claude-opus-5">Claude Opus 5 (แม่นที่สุด ~1.5 บาท/รูป)</option>
-        <option value="claude-sonnet-5">Claude Sonnet 5 (~0.6 บาท/รูป)</option>
+        <option value="claude-opus-5-5">Claude Opus 5.5 (แม่นที่สุด ~1.2 บาท/รูป)</option>
+        <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (~0.6 บาท/รูป)</option>
         <option value="claude-haiku-4-5">Claude Haiku 4.5 (ถูกสุด ~0.3 บาท/รูป)</option>
       </select></label>
       <div class="row"><button class="btn" id="aiSave" type="button">บันทึก</button><button class="btn ghost" id="aiClear" type="button">ลบ key</button></div>
