@@ -1,12 +1,12 @@
 // Coach 365 — ข้อมูลทั้งหมดเก็บใน localStorage ของเครื่อง
 (() => {
-  const START = new Date(2026, 9, 7), START_TH = "พุธ 7 ต.ค."; // วันที่ 1 ของแผน 2 ปี
+  const START = new Date(2026, 9, 8), START_TH = "พฤหัส 8 ต.ค."; // วันที่ 1 ของแผน 2 ปี
   const DAY = 86400000;
   // สัปดาห์นับแบบจันทร์–อาทิตย์ (สัปดาห์ 0 = สัปดาห์ที่มีวันเริ่ม) ให้แผนอาหาร รายการซื้อของ deload ตรงกับวัน meal prep อาทิตย์
   const START_OFF = (START.getDay() + 6) % 7;
   const weekIdx = (d) => Math.floor((Math.max(0, Math.round((d - START) / DAY)) + START_OFF) / 7);
   const SAVE_GOAL = 100000, PASSIVE_GOAL_DAY = 300;
-  const GOAL_END = new Date(2027, 9, 6); // เป้าเงินออม 1 ปี
+  const GOAL_END = new Date(2027, 9, 7); // เป้าเงินออม 1 ปี
   const STEPS = [5000, 7000, 9000, 10000, 11000, 12000, 12000, 12000, 12000, 12000, 12000, 12000];
   const BASE_DAYS = 730;
   // แผน 2 ปี: ปี 1 ลดไขมันจนลีน (รักษา/สร้างกล้ามไปด้วย) → ปี 2 สร้างกล้าม
