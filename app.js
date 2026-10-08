@@ -1,12 +1,12 @@
 // Coach 365 — ข้อมูลทั้งหมดเก็บใน localStorage ของเครื่อง
 (() => {
-  const START = new Date(2026, 9, 8), START_TH = "พฤหัส 8 ต.ค."; // วันที่ 1 ของแผน 2 ปี
+  const START = new Date(2026, 9, 9), START_TH = "ศุกร์ 9 ต.ค."; // วันที่ 1 ของแผน 2 ปี
   const DAY = 86400000;
   // สัปดาห์นับแบบจันทร์–อาทิตย์ (สัปดาห์ 0 = สัปดาห์ที่มีวันเริ่ม) ให้แผนอาหาร รายการซื้อของ deload ตรงกับวัน meal prep อาทิตย์
   const START_OFF = (START.getDay() + 6) % 7;
   const weekIdx = (d) => Math.floor((Math.max(0, Math.round((d - START) / DAY)) + START_OFF) / 7);
   const SAVE_GOAL = 100000, PASSIVE_GOAL_DAY = 300;
-  const GOAL_END = new Date(2027, 9, 7); // เป้าเงินออม 1 ปี
+  const GOAL_END = new Date(2027, 9, 8); // เป้าเงินออม 1 ปี
   const STEPS = [5000, 7000, 9000, 10000, 11000, 12000, 12000, 12000, 12000, 12000, 12000, 12000];
   const BASE_DAYS = 730;
   // แผน 2 ปี: ปี 1 ลดไขมันจนลีน (รักษา/สร้างกล้ามไปด้วย) → ปี 2 สร้างกล้าม
@@ -63,11 +63,93 @@
     { id: "money", time: "09:00", days: "M1", msg: "โอนเงินออม + ลงทุน แล้วบันทึกในแอป" },
   ];
 
+  // ---------- สไตล์โค้ช: สุภาพ / ปลุกใจ / ด่า ----------
+  // หัวข้อแจ้งเตือน = คำพูดโค้ชตามสไตล์ (สุ่มใหม่ทุกวันที่เปิดแอป) · เนื้อความ = สิ่งที่ต้องทำ (r.msg)
+  // ด่าที่พฤติกรรม ไม่ด่าที่ตัวคน · {why} = เหตุผลที่เริ่ม (ตั้งในแท็บตั้งค่า) ยังไม่ตั้ง = ไม่สุ่มบรรทัดนั้น
+  const TONES = [["roast", "ด่า 😤"], ["hype", "ปลุกใจ 🔥"], ["soft", "สุภาพ"]];
+  const KIND = { wakeWE: "wake", meditateWE: "meditate", postureWE: "posture", trainWE: "train", restAm: "rest", rest1: "rest", rest2: "rest", rest3: "rest" };
+  const LINES = {
+    roast: {
+      wake: ["ปลุกรอบเดียวพอ ลุก!", "กดเลื่อนปลุกอีกที = คนเดิมอีกวัน", "หมอนไม่ได้ช่วยลดไขมัน ลุก", "ไขมันชอบคนนอนต่อ อย่าให้มันชนะ", "เมื่อคืนสัญญากับตัวเองว่าไง? ลุก", "จำได้มั้ย {why} ลุก!"],
+      meditate: ["นั่งเฉยๆ 10 นาทียังไม่ไหว จะไหวอะไร", "หลับตาหายใจ ไม่ได้ให้ไปวิ่งมาราธอน", "ใจลอยทั้งวันเพราะข้ามตรงนี้แหละ"],
+      posture: ["คอยื่นเหมือนเต่ามาหลายปีแล้วนะ", "ไหล่ห่อแบบนี้ ใส่อะไรก็ไม่หล่อ", "อกผาย ไหล่ผึ่ง 10 นาที ไม่มีข้ออ้าง"],
+      train: ["ข้ออ้างไม่เผาแคลอรี่ ลุกไปทำ", "เวลาออกกำลังกาย ไม่ใช่เวลาไถฟีด", "ไม่ต้องรออารมณ์ แค่ไปทำ", "วันนี้โดด พรุ่งนี้ก็โดด รู้ตัวดี", "40 นาที แลกกับ 2 ปีข้างหน้า ไปเดี๋ยวนี้", "\"เดี๋ยวค่อยเริ่ม\" พูดมากี่รอบแล้ว", "ร่างกายรอคำสั่งอยู่ สั่งให้ลุก", "{why} แค่นี้ยังไม่ลุกอีก?"],
+      shower: ["อาบน้ำ แต่งตัว วางมือถือก่อน", "ไถมือถือในห้องน้ำ = ไปทำงานสาย"],
+      rest: ["พักคือพัก ไม่ใช่ไถ TikTok", "พักให้จริง แล้วกลับมาลุยต่อ"],
+      leave: ["ออกบ้าน! สายแล้วอย่าโทษรถติด", "กระเป๋า ขวดน้ำ ครบยัง ออกได้แล้ว"],
+      move: ["ก้นติดเก้าอี้แล้วมั้ง ลุก!", "นั่งนิ่งเป็นรูปปั้นมาชั่วโมงแล้ว", "นั่งทั้งวัน ไขมันได้ใจ ลุกเดิน 3 นาที", "ก้าวไม่เดินมาหาเองหรอก ลุก"],
+      meal1: ["โปรตีนก่อน ข้าวทีหลัง ไม่ใช่ซัดแต่แป้ง", "ถ่ายรูปก่อนกิน ไม่ถ่าย = กินมั่ว", "หิวแค่ไหนก็ถ่ายรูปก่อน 3 วิ"],
+      snack: ["ไข่ต้ม ไม่ใช่ขนมหน้าเคาน์เตอร์เซเว่น", "มื้อว่างโปรตีน ไม่ใช่ชานมไข่มุก"],
+      meal2: ["มื้อสุดท้าย กินเสร็จครัวปิด ห้ามแอบ", "หลังมื้อนี้ ตู้เย็นคือเขตหวงห้าม"],
+      walk: ["ก้าวไม่ครบ อย่ามาบ่นว่าไม่ลด", "เดิน 1 ชม. ง่ายกว่าอธิบายว่าทำไมไม่ลด", "ขาไม่ได้มีไว้เดินไปตู้เย็นอย่างเดียว"],
+      log: ["บันทึกวันนี้ ไม่จด = หลอกตัวเอง", "ห้องรก ใจก็รก 10 นาทีพอ"],
+      meditate2: ["วางมือถือ คลิปพวกนั้นไม่ได้ทำให้ผอม", "จด 3 บรรทัด แล้ววางมือถือไกลเตียง"],
+      sleep: ["นอน! อดนอน = หิวทั้งวันพรุ่งนี้", "นอนดึกคืนนี้ = โดดเวทพรุ่งนี้ เห็นมาแล้ว", "ปิดจอ พรุ่งนี้ตื่นไม่มีต่อรอง", "อีกคลิปเดียว… โกหก นอนเลย"],
+      side: ["เงินไม่วิ่งมาหาเอง ลงมือ 3 ชม.", "งานเสริมวันนี้ = อิสระปีหน้า"],
+      weigh: ["ขึ้นตาชั่ง กลัวตัวเลขไม่ทำให้มันลด", "คนไม่กล้าชั่ง คือคนหลอกตัวเอง"],
+      prep: ["ไม่ prep วันนี้ อาทิตย์หน้าได้สั่งของทอดแน่", "2 ชม. วันนี้ จบอาหารทั้งอาทิตย์"],
+      weekly: ["สรุปสัปดาห์มาแล้ว กล้าเปิดดูมั้ย", "ผลงานสัปดาห์นี้รอตรวจอยู่"],
+      money: ["โอนเงินออมก่อนมันหายไปกับของไร้สาระ"],
+      _: ["อย่าทำเป็นไม่เห็นแจ้งเตือนนี้", "ตัวเองในอีก 2 ปีกำลังดูอยู่", "ขี้เกียจ 5 นาที เสียใจทั้งปี", "{why} ลืมแล้วเหรอ"],
+    },
+    hype: {
+      wake: ["เช้าใหม่ ร่างกายใหม่ ลุกเลย ☀️", "ลุกตรงเวลา = ชนะไปแล้วหนึ่ง", "ลุกเลย วันนี้ของเรา 💪", "{why} ✨ เริ่มวันกัน"],
+      meditate: ["หายใจลึกๆ ใจนิ่ง วันนี้ชนะ 🧘", "10 นาทีที่ทำให้ทั้งวันดีขึ้น"],
+      posture: ["อกผาย ไหล่ผึ่ง บุคลิกเปลี่ยนชีวิต", "ยืนตรงขึ้นอีกนิด ดูดีขึ้นทันที"],
+      train: ["เวลาของเราแล้ว ลุยเลย 💪", "ทุกเซ็ตวันนี้ คือกล้ามปีหน้า", "แค่ 5 นาทีแรก ที่เหลือมันไปเอง", "ตัวเองปีหน้าจะขอบคุณวันนี้ 🔥", "{why} 🔥 ไปกัน!"],
+      shower: ["สดชื่นแล้วไปลุยงานต่อ 🚿"],
+      rest: ["พักให้เต็มที่ ร่างกายกำลังซ่อม 😌"],
+      leave: ["ไปทำงานกัน วันนี้ดีแน่ 💼"],
+      move: ["ลุกยืดตัวหน่อย ร่างกายจะขอบคุณ", "ทุกก้าวคือไขมันที่หายไป 🚶"],
+      meal1: ["เติมโปรตีน สร้างกล้าม 🍗", "กินดีวันนี้ หุ่นดีปีหน้า"],
+      snack: ["โปรตีนเติมพลังช่วงบ่าย 🥚"],
+      meal2: ["มื้อสุดท้ายของวัน แล้วปิดครัว 🔒"],
+      walk: ["เดินชิลๆ 1 ชม. ไขมันละลาย 🚶", "ก้าวครบ = ชนะอีกวัน"],
+      log: ["จดไว้ เห็นความก้าวหน้า 📈"],
+      meditate2: ["ปิดวันอย่างสงบ 🌙"],
+      sleep: ["นอนคือช่วงที่กล้ามโต 😴", "พรุ่งนี้ตื่นมาสดชื่น นอนเลย"],
+      side: ["ลงทุนกับตัวเอง 3 ชม. 🚀"],
+      weigh: ["ตัวเลขคือข้อมูล ไม่ใช่คำตัดสิน 📊"],
+      prep: ["prep วันนี้ สบายทั้งอาทิตย์ 🍱"],
+      weekly: ["มาดูว่าสัปดาห์นี้ไปได้ไกลแค่ไหน 📈"],
+      money: ["เงินออมโตขึ้นอีกแล้ว 💰"],
+      _: ["วันละนิด 2 ปีเปลี่ยนชีวิต", "ต่อเนื่องชนะทุกอย่าง 🔥"],
+    },
+  };
+  // ทวง: เด้งซ้ำเมื่อถึงเวลาแล้วยังไม่ได้ทำ ทำในแอปแล้ว = ยกเลิกให้เอง (ไม่โดนด่า)
+  const trainStarted = (l) => !!(l.workout || l.walkAm || l.hiit || Object.keys(l.wStart || {}).some((k) => k !== "P"));
+  const NAGS = [
+    { at: (d) => addMin(morningOf(d).wake, 20), done: (l) => l.sleepH != null || l.weight != null, body: "ตื่นแล้วกด \"ตื่นแล้ว\" ในแอป + ชั่งน้ำหนักก่อนกินดื่ม",
+      soft: "ตื่นหรือยัง?", hype: "ตื่นยัง? มาเริ่มวันกัน ☀️", roast: ["ยังนอนอยู่จริงดิ?", "20 นาทีแล้ว ตาชั่งรอ ไม่ใช่หมอน", "นอนต่ออีกนิด… แล้วก็แพ้อีกวัน"] },
+    { at: (d) => addMin(morningOf(d).train, 15), done: trainStarted, body: "ยังไม่ได้เริ่มออกกำลังกาย เปิดแอปกด ▶ เริ่มเลย ทำแค่ท่าแรกก่อนก็ได้",
+      soft: "ได้เวลาออกกำลังกายแล้ว", hype: "เริ่มแค่ท่าแรก ที่เหลือมันไปเอง 💪", roast: ["15 นาทีแล้ว ยังไม่เริ่ม?", "รออารมณ์อยู่เหรอ มันไม่มาหรอก", "ไถมือถืออยู่ใช่มั้ย วางแล้วไปเริ่ม"] },
+    { at: (d) => addMin(morningOf(d).train, 35), done: trainStarted, body: "ยังเป็นศูนย์ ทำ 10 นาทีก็ยังดีกว่าศูนย์ (เปิดแอป → ▶ เริ่มเลย)",
+      soft: "ยังไม่ได้ออกกำลังกายวันนี้", hype: "10 นาทีก็นับ ลุยกัน 🔥", roast: ["ศูนย์ ยังเป็นศูนย์", "วันนี้จะเป็นอีกวัน \"เดี๋ยวค่อยเริ่ม\" เหรอ", "คนเดิมชนะอีกแล้ว ยอมเหรอ?"] },
+    { at: () => "17:00", done: (l) => !!l.food?.length, body: "วันนี้ยังไม่ได้บันทึกอาหารสักมื้อ ถ่ายรูปหรือกด \"กินตามแผน\" ได้เลย",
+      soft: "ยังไม่ได้บันทึกอาหาร", hype: "จดมื้อเที่ยงหน่อย เห็นตัวเลขชัดขึ้น 📈", roast: ["กินอะไรไปบ้าง ทำไมไม่จด", "ไม่จด = กินมั่ว รู้ตัวดี"] },
+    { at: () => "22:20", done: (l) => l.steps != null, body: "ยังไม่ได้ใส่ก้าววันนี้ ดูตัวเลขในมือถือแล้วกดใส่ในแอป",
+      soft: "ใส่ก้าววันนี้หน่อย", hype: "วันนี้เดินไปเท่าไร มาดูกัน 🚶", roast: ["ก้าววันนี้เท่าไร ไม่กล้าใส่เหรอ", "ไม่ใส่ก้าว = ไม่ได้เดินใช่มั้ย"] },
+    { at: () => "23:20", done: (l) => !!(l.bedAt || l.sleep), body: "เลย 23:00 แล้ว วางมือถือ กด \"นอนแล้ว\" แล้วนอนเลย",
+      soft: "ได้เวลานอนแล้ว", hype: "นอนตอนนี้ พรุ่งนี้สดชื่น 😴", roast: ["ยังไม่นอนอีก! พรุ่งนี้อย่ามาโทษใคร", "อีกคลิปเดียว… โกหก นอน", "นอนดึก = พรุ่งนี้โดดเวท เห็นมาแล้ว"] },
+  ];
+  // หายไปไหน: ไม่เปิดแอปกี่วันแล้ว (เปิดแอป = เลื่อนออกไปเอง) [วันที่ไม่เปิด, เวลา, ด่า, สุภาพ/ปลุกใจ, เนื้อความ]
+  const AWAY = [
+    [1, "20:30", "วันนี้ไม่เปิดแอปเลยนะ แอบไปกินอะไรมา", "วันนี้ยังไม่ได้บันทึก", "เปิดแอปบันทึก 1 นาทีพอ ไม่ต้องสมบูรณ์"],
+    [2, "08:00", "2 วันแล้ว จะหายเหมือนรอบก่อนๆ เหรอ", "2 วันแล้วที่ไม่ได้เปิดแอป", "ห้ามพลาด 2 วันติด เปิดแอปแล้วทำแค่ 1 อย่างวันนี้"],
+    [3, "12:00", "3 วัน… ไขมันกำลังจัดปาร์ตี้", "คิดถึงนะ กลับมาต่อกัน", "ไม่ต้องชดเชย ไม่ต้องเริ่มใหม่ แค่ทำวันนี้ต่อ"],
+    [5, "19:00", "5 วันแล้ว ที่สัญญาไว้หายไปไหน", "5 วันแล้ว กลับมาเมื่อไรก็ได้", "เปิดแอป ชั่งน้ำหนัก แล้วไปต่อจากตรงนี้"],
+    [7, "19:00", "หายไปอาทิตย์นึง กลับมาตอนนี้ยังทัน", "ยังรออยู่นะ", "ไม่ต้องรอวันจันทร์ ไม่ต้องรอต้นเดือน เริ่มต่อวันนี้"],
+  ];
+  // ในแอป (สไตล์ด่า): ขึ้นบนการ์ดหลักเมื่อช้ากว่าเวลาเกิน 15 นาที
+  const JABS = ["ช้าไป {m} แล้ว ยังไม่ทำอีก", "เปิดแอปมาดูเฉยๆ ไม่นับนะ", "อ่านจบแล้วกดปุ่มเลย ไม่ต้องคิด", "{m} ที่เสียไป ไม่ได้คืนนะ", "รู้อยู่แล้วว่าต้องทำ แล้วรออะไร"];
+  const NAG_ID = (d, k) => 100000 + (idx(d) + 100) * 10 + k; // ไอดีตามวัน: ยกเลิกเฉพาะของวันนั้นได้
+  let nagOff = new Set(); // ทวงของวันนี้ที่ยกเลิกไปแล้ว
+
   // ---------- state ----------
   // profile: ส่วนสูง/อายุใช้คำนวณแคลอรี่และไขมัน · goalW 75 เป็นค่าเริ่ม หลังวัดเอว/คอ แอปจะบอกน้ำหนักที่ไขมันถึงเป้าจริง · startW ว่าง = ใช้ที่ชั่งวันเริ่ม
   // kcalAdj = ปรับแคลอรี่จากผลจริงรายสัปดาห์ · cutExtend = สัปดาห์ที่ลดต่อเพราะยังไม่ลีนพอก่อนเริ่มปี 2
   const def = () => ({ logs: {}, money: [], passiveMonthly: 0, rem: Object.fromEntries(REMINDERS.map((r) => [r.id, true])), fired: {},
-    profile: { height: 168, age: 23, goalW: 75, goalBf: 12, startW: null }, kcalAdj: 0, cutExtend: 0 });
+    profile: { height: 168, age: 23, goalW: 75, goalBf: 12, startW: null }, kcalAdj: 0, cutExtend: 0, tone: "roast", nag: true, why: "" });
   let S = def();
   function normalize() {
     // ช่องที่ยังว่างใช้ค่าตัวจริง (อายุ 23 สูง 168 หนัก 110) ค่าที่กรอกเองไม่ทับ
@@ -79,7 +161,7 @@
   try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(def(), JSON.parse(raw)); } catch (e) {}
   normalize();
   let cache = {}; // ค่าที่คำนวณจาก logs (น้ำหนักตั้งต้น เส้นเป้า) ล้างทุกครั้งที่บันทึก
-  const save = () => { cache = {}; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast("บันทึกไม่ได้: พื้นที่เครื่องเต็มหรือถูกบล็อก"); } };
+  const save = () => { cache = {}; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast("บันทึกไม่ได้: พื้นที่เครื่องเต็มหรือถูกบล็อก"); } syncNags(); };
 
   // ---------- helpers ----------
   const $ = (id) => document.getElementById(id);
@@ -90,6 +172,16 @@
   const fmt = (n, dp = 0) => (n == null || n === "" || isNaN(n) ? "–" : Number(n).toLocaleString("th-TH", { minimumFractionDigits: dp, maximumFractionDigits: dp }));
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+  const addMin = (t, m) => { const [h, mi] = t.split(":").map(Number); const x = h * 60 + mi + m; return `${pad(Math.floor(x / 60) % 24)}:${pad(x % 60)}`; };
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  // คำพูดโค้ชตามสไตล์ที่เลือก (ไม่มี = null → ใช้ "Coach 365")
+  function lines(kind, tone = S.tone) {
+    const T = LINES[tone]; if (!T) return null;
+    const why = String(S.why || "").trim();
+    return (T[kind] || T._).filter((s) => why || !s.includes("{why}")).map((s) => s.replace("{why}", `“${why}”`));
+  }
+  const coachTitle = (rid) => { const a = lines(KIND[rid] || rid); return a?.length ? pick(a) : "Coach 365"; };
+  const nagTitle = (n) => (S.tone === "roast" ? pick(n.roast) : n[S.tone] || n.soft);
   let toastT;
   function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2200); }
 
@@ -301,6 +393,7 @@
         ["ตั้งแจ้งเตือน", () => show("settings")],
       ].filter(Boolean).slice(0, 2);
       h.innerHTML = `<div class="eyebrow">วันซ้อมมือ · เริ่มจริง${i === -1 ? "พรุ่งนี้" : ` อีก ${-i} วัน`} (${START_TH})</div><h2>ลองกดทุกอย่างได้เลย</h2>`
+        + (S.tone === "roast" ? `<p class="jab">😤 เลื่อนวันเริ่มมาหลายรอบแล้ว ${START_TH} ห้ามเลื่อนอีก</p>` : "")
         + `<p>วันนี้ไม่นับในแผน ลองบันทึกอาหาร ชั่งน้ำหนัก เล่นเวทเบาๆ ให้คุ้นมือ น้ำหนักที่ชั่งวันนี้จะใช้เป็นน้ำหนักเริ่มต้น${i === -1 ? ` · พรุ่งนี้ ${morningOf(new Date(today().getTime() + DAY)).wake} ชั่ง + วัดเอว/คอ ก่อนกินดื่ม คืนนี้นอน ${BED}` : ""}</p>`
         + `<div class="row">${steps.map(([t], k) => `<button class="btn ${k ? "ghost" : ""}" type="button" data-hero="${k}">${t}</button>`).join("")}</div>`;
       heroActs = steps.map((s) => s[1]);
@@ -313,7 +406,11 @@
     }
     if (!a) { h.innerHTML = `<div class="eyebrow">วันที่ ${i + 1}</div><h2>วันนี้ครบทุกอย่างแล้ว 🎉</h2><p>ไม่ต้องทำอะไรเพิ่ม ไปพักได้เลย</p>`; return; }
     const late = a.t <= now, upcoming = !late;
-    h.innerHTML = `<div class="eyebrow">${upcoming ? `ต่อไป ${a.t}` : `ตอนนี้ · ${a.t}`} · เหลืออีก ${A.length - done} อย่าง</div><h2>${a.title}</h2><p>${a.sub}</p>
+    // สไตล์ด่า: ช้ากว่าเวลาเกิน 15 นาที โค้ชแซะ (ประโยคเปลี่ยนทุกครึ่งชั่วโมง ไม่กระพริบทุกนาที)
+    const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3)), lateMin = late ? toMin(now) - toMin(a.t) : 0;
+    const lateTxt = lateMin >= 60 ? `${Math.floor(lateMin / 60)} ชม.${lateMin % 60 ? ` ${lateMin % 60} นาที` : ""}` : `${lateMin} นาที`;
+    const jab = S.tone === "roast" && lateMin >= 15 ? JABS[(Math.floor(lateMin / 30) + a.title.length) % JABS.length].replace("{m}", lateTxt) : "";
+    h.innerHTML = `<div class="eyebrow">${upcoming ? `ต่อไป ${a.t}` : `ตอนนี้ · ${a.t}`} · เหลืออีก ${A.length - done} อย่าง</div><h2>${a.title}</h2>${jab ? `<p class="jab">😤 ${jab}</p>` : ""}<p>${a.sub}</p>
       <div class="row"><button class="btn" type="button" data-hero="0">${a.btn}</button>${a.alt ? `<button class="btn ghost" type="button" data-hero="1">${a.alt}</button>` : ""}</div>`;
   }
   $("hero").addEventListener("click", (e) => { const b = e.target.closest("[data-hero]"); if (b) heroActs[b.dataset.hero]?.(); });
@@ -600,11 +697,29 @@
   $("hiitBtn").addEventListener("click", startHiit);
 
   // ---------- แจ้งเตือนแบบแอป (Android ผ่าน Capacitor) ----------
-  const native = () => window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.LocalNotifications : null;
-  async function scheduleNative() {
+  function native() { return window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.LocalNotifications : null; }
+  const atTime = (d, hm) => { const [h, m] = hm.split(":").map(Number); const x = new Date(d); x.setHours(h, m, 0, 0); return x; };
+  // แจ้งเตือนครั้งเดียวล่วงหน้า 7 วัน: นับถอยหลังก่อนวันเริ่ม + ทวง (เฉพาะที่ยังไม่ทำ) + หายไปไหน
+  function oneShots() {
+    const out = [], now = new Date(), t0 = today(), roast = S.tone === "roast";
+    const add = (id, when, title, body) => { if (when > now) out.push({ id, title, body, schedule: { at: when, allowWhileIdle: true } }); };
+    for (let k = 0; k < 7; k++) {
+      const d = new Date(t0.getTime() + k * DAY), i = idx(d), l = S.logs[iso(d)] || {};
+      if (i >= total()) break;
+      if (i < 0) add(NAG_ID(d, 8), atTime(d, "21:00"),
+        i === -1 ? (roast ? "พรุ่งนี้วันที่ 1 รอบนี้ห้ามเลื่อน" : "พรุ่งนี้วันที่ 1 แล้ว 🔥") : roast ? `อีก ${-i} วันเริ่ม ข้ออ้างหมดแล้วนะ` : `อีก ${-i} วันเริ่ม เตรียมตัวกัน 💪`,
+        i === -1 ? `คืนนี้เตรียมตาชั่ง สายวัด นอน ${BED} · พรุ่งนี้ ${morningOf(START).wake} ชั่ง + วัดเอว/คอ + ถ่ายรูป ก่อนกินดื่ม` : "เตรียมให้พร้อมก่อนวันแรก: ตาชั่ง สายวัด อกไก่ ไข่ ผัก · ลองกดทุกปุ่มในแอปได้เลย");
+      if (S.nag === false) continue;
+      // ก่อนวันเริ่มทวงแค่เรื่องนอนคืนก่อนวันแรก
+      NAGS.forEach((n, j) => { if ((i >= 0 || (i === -1 && j === NAGS.length - 1)) && !n.done(l)) add(NAG_ID(d, j), atTime(d, n.at(d)), nagTitle(n), n.body); });
+    }
+    if (S.nag !== false) AWAY.forEach(([n, t, rt, st, body], j) => add(900001 + j, atTime(new Date(t0.getTime() + n * DAY), t), roast ? rt : st, body));
+    return out;
+  }
+  async function scheduleNative(ask = true) {
     const LN = native(); if (!LN) return false;
     try {
-      const perm = await LN.requestPermissions(); if (perm.display !== "granted") return false;
+      const perm = await (ask ? LN.requestPermissions() : LN.checkPermissions()); if (perm.display !== "granted") return false;
       const pending = await LN.getPending(); if (pending.notifications?.length) await LN.cancel(pending);
       const list = []; let id = 1;
       const WD = { SA: [7], SU: [1], WE: [1, 7], weekday: [2, 3, 4, 5, 6] };
@@ -612,16 +727,31 @@
         if (S.rem[r.id] === false) return;
         r.time.split(",").forEach((t) => {
           const [hour, minute] = t.split(":").map(Number);
-          const base = { title: "Coach 365", body: r.msg, schedule: { repeats: true, allowWhileIdle: true } };
-          if (r.days === "daily") list.push({ ...base, id: id++, schedule: { ...base.schedule, on: { hour, minute } } });
-          else if (r.days === "M1") list.push({ ...base, id: id++, schedule: { ...base.schedule, on: { day: 1, hour, minute } } });
-          else WD[r.days].forEach((weekday) => list.push({ ...base, id: id++, schedule: { ...base.schedule, on: { weekday, hour, minute } } }));
+          // แต่ละวันได้คำพูดโค้ชคนละประโยค
+          const one = (on) => list.push({ id: id++, title: coachTitle(r.id), body: r.msg, schedule: { on: { ...on, hour, minute }, repeats: true, allowWhileIdle: true } });
+          if (r.days === "daily") one({});
+          else if (r.days === "M1") one({ day: 1 });
+          else WD[r.days].forEach((weekday) => one({ weekday }));
         });
       });
+      list.push(...oneShots());
       await LN.schedule({ notifications: list });
+      nagOff = new Set(); S.notifDay = iso(today()); save();
       return list.length;
     } catch (e) { return false; }
   }
+  // ทำแล้ว = ยกเลิกการทวงของวันนี้ (เรียกจาก save ทุกครั้ง)
+  function syncNags() {
+    const LN = native(); if (!LN || S.nag === false) return;
+    const d = today(), l = S.logs[iso(d)] || {};
+    const ids = NAGS.map((n, j) => (n.done(l) ? NAG_ID(d, j) : null)).filter((x) => x != null && !nagOff.has(x));
+    if (!ids.length) return;
+    ids.forEach((x) => nagOff.add(x));
+    LN.cancel({ notifications: ids.map((id) => ({ id })) }).catch(() => {});
+  }
+  // วันละครั้งตอนเปิดแอป: สุ่มคำพูดใหม่ เลื่อนทวง 7 วัน และดัน "หายไปไหน" ออกไป
+  let notifTry = "";
+  function reschedDaily() { const k = iso(today()); if (native() && S.notifDay !== k && notifTry !== k) { notifTry = k; scheduleNative(false); } }
 
   async function startWorkout(key) {
     try {
@@ -769,14 +899,30 @@
     renderProfile();
     $("enableNotif").hidden = !native() && (!notifSupported() || Notification.permission === "granted");
     $("reminderList").innerHTML = REMINDERS.map((r) => `<label class="rem"><span class="t">${r.time.split(",")[0]}${r.time.includes(",") ? "+" : ""}</span><span class="m">${r.msg}<br><span class="small muted">${dayText[r.days]}${r.time.includes(",") ? " · " + r.time.replace(/,/g, ", ") : ""}</span></span><input type="checkbox" data-rem="${r.id}" ${S.rem[r.id] !== false ? "checked" : ""}></label>`).join("");
+    $("toneChips").innerHTML = TONES.map(([k, t]) => `<button type="button" class="chip ${S.tone === k ? "on" : ""}" data-tone="${k}" aria-pressed="${S.tone === k}">${t}</button>`).join("");
+    $("toneSample").innerHTML = `<b>${esc(coachTitle("train"))}</b><br>${esc(REMINDERS.find((r) => r.id === "train").msg)}`;
+    $("nagOn").checked = S.nag !== false;
+    if (document.activeElement !== $("whyIn")) $("whyIn").value = S.why || "";
   }
   $("reminderList").addEventListener("change", (ev) => { const id = ev.target.dataset.rem; if (id) { S.rem[id] = ev.target.checked; save(); scheduleNative(); } });
+  $("toneChips").addEventListener("click", (e) => { const k = e.target.closest("[data-tone]")?.dataset.tone; if (!k) return; S.tone = k; save(); buzz(); renderSettings(); renderHero(); scheduleNative(); });
+  $("toneSample").addEventListener("click", renderSettings); // แตะเพื่อสุ่มประโยคใหม่
+  $("nagOn").addEventListener("change", () => { S.nag = $("nagOn").checked; save(); scheduleNative(); toast(S.nag ? "เปิดทวงแล้ว ไม่ทำ = โดน" : "ปิดทวงแล้ว"); });
+  $("whyIn").addEventListener("change", () => { S.why = $("whyIn").value.trim().slice(0, 60); save(); renderSettings(); scheduleNative(); toast(S.why ? "โค้ชจำไว้แล้ว จะเอามาทวงตอนขี้เกียจ" : "ลบเหตุผลแล้ว"); });
   $("enableNotif").addEventListener("click", async () => {
     if (native()) { const n = await scheduleNative(); toast(n ? `ตั้งแจ้งเตือนในเครื่องแล้ว ${n} รายการ` : "ไม่ได้รับอนุญาต เปิดในการตั้งค่าแอป"); renderSettings(); return; }
     const p = await Notification.requestPermission(); renderSettings(); if (p === "granted") notify("เปิดแจ้งเตือนแล้ว", "Coach 365 จะเตือนตามตาราง");
   });
   if (native()) scheduleNative();
-  $("testNotif").addEventListener("click", () => notifSupported() && Notification.permission === "granted" ? notify("ทดสอบแจ้งเตือน", "ถ้าเห็นข้อความนี้ แสดงว่าใช้ได้") : toast("ยังไม่ได้เปิดการแจ้งเตือน"));
+  $("testNotif").addEventListener("click", async () => {
+    const title = coachTitle("train"), body = "ตัวอย่างสไตล์โค้ชที่เลือก · ถ้าเห็นข้อความนี้ แสดงว่าแจ้งเตือนใช้ได้", LN = native();
+    if (LN) {
+      try { await LN.schedule({ notifications: [{ id: 999999, title, body, schedule: { at: new Date(Date.now() + 3000), allowWhileIdle: true } }] }); toast("อีก 3 วินาทีจะเด้ง"); }
+      catch (e) { toast("ยังไม่ได้รับอนุญาต กด \"เปิดการแจ้งเตือน\" ก่อน"); }
+      return;
+    }
+    if (notifSupported() && Notification.permission === "granted") notify(title, body); else toast(`ยังไม่ได้เปิดแจ้งเตือน · ตัวอย่าง: ${title}`);
+  });
 
   async function notify(title, body) {
     try { const reg = await navigator.serviceWorker.ready; reg.showNotification(title, { body, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: title }); }
@@ -793,11 +939,16 @@
       if (S.rem[r.id] === false || !dueToday(r, now)) return;
       r.time.split(",").forEach((t) => {
         const key = r.id + "@" + t;
-        if (t <= hm && hm < addMin(t, 10) && S.fired[key] !== dk) { S.fired[key] = dk; save(); notify("Coach 365", r.msg); }
+        if (t <= hm && hm < addMin(t, 10) && S.fired[key] !== dk) { S.fired[key] = dk; save(); notify(coachTitle(r.id), r.msg); }
       });
     });
+    // ทวง (เว็บ): เด้งได้เฉพาะตอนแอปเปิดค้าง/อยู่เบื้องหลัง
+    const i = idx(today()), l = S.logs[dk] || {};
+    if (S.nag !== false) NAGS.forEach((n, j) => {
+      const t = n.at(now), key = "nag" + j;
+      if ((i >= 0 || (i === -1 && j === NAGS.length - 1)) && t <= hm && hm < addMin(t, 10) && S.fired[key] !== dk && !n.done(l)) { S.fired[key] = dk; save(); notify(nagTitle(n), n.body); }
+    });
   }
-  const addMin = (t, m) => { const [h, mi] = t.split(":").map(Number); const x = h * 60 + mi + m; return `${pad(Math.floor(x / 60) % 24)}:${pad(x % 60)}`; };
   setInterval(tick, 30000); tick();
 
   // ---------- .ics ----------
@@ -908,8 +1059,8 @@
     shownDay = k; ["logDate", "foodDate", "m-date"].forEach((id) => ($(id).value = k));
     renderAll(); window.Food?.render();
   }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { rollover(); applyWidgetPending(); } });
-  setInterval(() => { rollover(); renderSchedule(); renderHero(); applyWidgetPending(); pushWidget(); }, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { rollover(); applyWidgetPending(); reschedDaily(); } });
+  setInterval(() => { rollover(); renderSchedule(); renderHero(); applyWidgetPending(); pushWidget(); reschedDaily(); }, 60000);
   renderAll(); applyWidgetPending(); renderBackup(); autoBackup();
   window.Coach = { get S() { return S; }, aiKey, aiProvider, save, iso, today, toast, fmt, esc, START, weekIdx, waterGoal, pushWidget, addMeal, afterMeal, closeKitchen, plannedMeal, refresh, celebrate, plan, goalAt, PHASES, DIET_BREAKS,
     total, y1End, startW, goalW, trendWeight, lastWeight, targetFor, show, renderProfile };
