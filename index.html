@@ -29,6 +29,11 @@
   <!-- วันนี้ -->
   <section data-view="today">
     <div class="hero" id="hero"></div>
+    <div class="card" id="tlCard">
+      <div class="row between"><h2>ตารางวันนี้</h2><span class="small muted" id="restTotal"></span></div>
+      <p class="small muted" style="margin:-6px 0 0">แตะรายการเพื่อดูว่าต้องทำอะไร แล้วกดเริ่มได้เลย</p>
+      <div class="tl" id="schedule"></div>
+    </div>
     <div class="card">
       <div class="row between"><h2>วันนี้ทำแล้ว</h2><b class="num" id="scoreText"></b></div>
       <div class="chips" id="chips"></div>
@@ -63,9 +68,8 @@
       </div>
     </div>
     <details class="card" id="schedCard">
-      <summary><h2 style="display:inline">ตารางวันนี้</h2> <span class="small muted" id="restTotal"></span></summary>
+      <summary><h2 style="display:inline">เป้าวันนี้</h2></summary>
       <div class="targets" id="targets" style="margin-top:10px"></div>
-      <div id="schedule" class="sched"></div>
     </details>
     <form id="logForm" class="card">
       <div class="row between">
