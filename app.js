@@ -324,7 +324,7 @@
   function goBed() {
     const late = new Date().getHours() < 5, k = iso(late ? new Date(today() - DAY) : today()), l = (S.logs[k] = S.logs[k] || {});
     l.bedAt = hmNow(); if (!late && l.bedAt <= "23:15") l.sleep = true;
-    save(); celebrate(l.sleep ? "ฝันดี พรุ่งนี้เจอกัน 😴" : "ดึกไปหน่อย คืนพรุ่งนี้เข้านอนเร็วขึ้นนะ 😴"); refresh();
+    save(); celebrate(l.sleep ? "ฝันดี พรุ่งนี้เจอกัน 😴" : "ดึกไปหน่อย คืนพรุ่งนี้เข้านอนเร็วขึ้นนะ 😴"); refresh(); if (!late) maybeRecap();
   }
   function sleepEst() {
     const b = yLog().bedAt, n = new Date(); if (!b || n.getHours() < 4 || n.getHours() >= 10) return null;
@@ -546,13 +546,19 @@
     money: ["โอนเงินออม + ลงทุน", ["โอนเงินออมก่อนใช้", "บันทึกในแท็บเงิน"]],
   };
   let tlRows = [], tlOpen = null, tlPast = false;
+  // สิ่งที่ต้องทำของวัน + สถานะ (done / now / up = ต่อไป / late / next) ใช้ทั้งตารางและฉาก 3D
+  function dayActs(d, now, pre) {
+    const A = actions(d), cur = pre ? null : A.find((x) => !x.done && x.t <= now) || A.find((x) => !x.done);
+    return A.map((a) => ({ ...a, state: a.done ? "done" : a === cur ? (a.t <= now ? "now" : "up") : a.t <= now ? "late" : "next" }));
+  }
   function renderSchedule() {
     // ก่อนวันเริ่ม: โชว์ตารางของวันแรกล่วงหน้า (ดูอย่างเดียว) แทนวันซ้อมมือ
     const pre = idx(today()) < 0, d = pre ? new Date(START.getTime()) : today(), now = pre ? "00:00" : hmNow(), wd = d.getDay();
     $("tlTitle").textContent = pre ? (idx(today()) === -1 ? "ตารางพรุ่งนี้ · วันที่ 1" : `ตารางวันแรก · ${START_TH}`) : "ตารางวันนี้";
+    const jm = journeyMode(); $("jrBtn").textContent = jm === "preview" ? "🎬 ดูตัวอย่างวันแรก" : jm === "recap" ? "🎬 ดูสรุปวันนี้" : "🎬 ดูเป็นเรื่อง";
+    if (!pre && rows.every((r) => r.done) && S.jRecap !== iso(today())) maybeRecap();
     $("tlSub").textContent = pre ? "ดูล่วงหน้าว่าวันแรกต้องทำอะไร แตะดูขั้นตอนได้ ปุ่มจะกดได้วันจริง" : "แตะรายการเพื่อดูว่าต้องทำอะไร แล้วกดเริ่มได้เลย";
-    const A = actions(d), cur = pre ? null : A.find((x) => !x.done && x.t <= now) || A.find((x) => !x.done);
-    const rows = A.map((a) => ({ ...a, state: a.done ? "done" : a === cur ? (a.t <= now ? "now" : "up") : a.t <= now ? "late" : "next" }));
+    const rows = dayActs(d, now, pre);
     const info = (key, t, end, rest) => rows.push({ key, t, title: INFO[key][0], how: INFO[key][1], rest, info: true, state: end <= now ? "past" : t <= now ? "on" : "next" });
     REMINDERS.forEach((r) => { if (INFO[r.id] && dueToday(r, d)) { const ts = r.time.split(","); info(r.id, ts[0], addMin(ts[ts.length - 1], r.rest || 5), r.rest); } });
     if (wd >= 1 && wd <= 5) info("work", "09:00", "18:00");
@@ -757,6 +763,33 @@
   }
   $("hiitBtn").addEventListener("click", startHiit);
 
+  // ---------- เรื่องของวันนี้ (ฉาก 3D ตัวละครเดินตามตาราง) ----------
+  // เล่นเองตอนเปิดแอปครั้งแรกของวัน · ปุ่ม 🎬 ในตารางวันนี้ · สรุปตอนกด "นอนแล้ว" หรือทำครบทุกอย่าง (อย่างละครั้งต่อวัน)
+  function journeyMode() { return idx(today()) < 0 ? "preview" : actions().every((a) => a.done) || hmNow() >= "21:30" ? "recap" : "now"; }
+  async function startJourney(mode = journeyMode()) {
+    if (document.querySelector(".jr")) return;
+    const pre = idx(today()) < 0, d = pre ? new Date(START.getTime()) : today(), p = plan(d);
+    const rows = dayActs(d, pre ? "00:00" : hmNow(), pre).map(({ key, t, title, done, state, btn }) => ({ key, t, title, done, state, btn }));
+    const last = lastWeight(), sw = startW(), gw = goalW(), prog = last == null || sw <= gw ? 0 : Math.max(0, Math.min(1, (sw - last) / (sw - gw)));
+    toast("กำลังโหลดฉาก 3D…");
+    try {
+      const { openJourney } = await import("./journey.js");
+      await openJourney({ mode: pre ? "preview" : mode, rows, day: p.day, startTh: START_TH, tone: S.tone, why: S.why, prog, streak: streakDays(), voice: S.jVoice !== false,
+        tomorrow: plan(new Date(d.getTime() + DAY)).activity, onVoice: (v) => { S.jVoice = v; save(); },
+        onAct: (key) => { show("today"); actions().find((a) => a.key === key)?.act?.(); } });
+      $("toast").hidden = true;
+    } catch (e) { toast("เปิดฉาก 3D ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่"); }
+  }
+  $("jrBtn").addEventListener("click", () => startJourney());
+  function maybeIntro() {
+    const k = iso(today()); if (S.jIntro === k || busy() || idx(today()) >= total()) return;
+    S.jIntro = k; save(); startJourney(idx(today()) < 0 ? "preview" : actions().every((a) => a.done) ? "recap" : "intro");
+  }
+  function maybeRecap() {
+    const k = iso(today()); if (S.jRecap === k || idx(today()) < 0 || idx(today()) >= total()) return;
+    S.jRecap = k; save(); setTimeout(() => { if (!busy()) startJourney("recap"); }, 1400);
+  }
+
   // ---------- แจ้งเตือนแบบแอป (Android ผ่าน Capacitor) ----------
   function native() { return window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.LocalNotifications : null; }
   const atTime = (d, hm) => { const [h, m] = hm.split(":").map(Number); const x = new Date(d); x.setHours(h, m, 0, 0); return x; };
@@ -907,6 +940,12 @@
   const entries = () => Object.keys(S.logs).sort().map((k) => ({ date: k, ...S.logs[k] }));
   function lastWeight() { const w = entries().filter((e) => e.weight != null); return w.length ? w[w.length - 1].weight : null; }
 
+  // วันต่อเนื่องที่ปิดครัวหรือออกกำลังกาย (วันนี้ยังไม่บันทึก = นับจากเมื่อวาน)
+  function streakDays() {
+    let n = 0, d = today(); if (!S.logs[iso(d)]) d = new Date(d - DAY);
+    while (S.logs[iso(d)] && (S.logs[iso(d)].if || S.logs[iso(d)].workout)) { n++; d = new Date(d - DAY); }
+    return n;
+  }
   function renderStats() {
     const es = entries(), ws = es.filter((e) => e.weight != null && idx(parse(e.date)) >= 0), t = today();
     // มุมมอง: ปีปัจจุบัน หรือทั้ง 2 ปี (ปี 1 ยาวขึ้นถ้ามีช่วงลดต่อ)
@@ -936,8 +975,7 @@
     const last = lastWeight(), tgtNow = goalAt(idx(t));
     const wk = es.filter((e) => (t - parse(e.date)) / DAY < 7 && e.steps != null);
     const avg = wk.length ? wk.reduce((a, e) => a + e.steps, 0) / wk.length : null;
-    let streak = 0, d = new Date(t); if (!S.logs[iso(d)]) d = new Date(d - DAY);
-    while (S.logs[iso(d)] && (S.logs[iso(d)].if || S.logs[iso(d)].workout)) { streak++; d = new Date(d - DAY); }
+    const streak = streakDays();
     const pt = plan(t).steps;
     $("bodyStats").innerHTML =
       `<div class="stat ${last == null ? "" : last <= tgtNow + 0.5 ? "good" : last <= tgtNow + 2 ? "warn" : "bad"}"><span class="eyebrow">ล่าสุด</span><b>${fmt(last, 1)}</b><span class="small muted">เป้าตอนนี้ ${fmt(tgtNow, 1)}</span></div>` +
@@ -1120,7 +1158,7 @@
     shownDay = k; ["logDate", "foodDate", "m-date"].forEach((id) => ($(id).value = k));
     renderAll(); window.Food?.render();
   }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { rollover(); applyWidgetPending(); reschedDaily(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { rollover(); applyWidgetPending(); reschedDaily(); maybeIntro(); } });
   setInterval(() => { rollover(); renderSchedule(); renderHero(); applyWidgetPending(); pushWidget(); reschedDaily(); }, 60000);
   renderAll(); applyWidgetPending(); renderBackup(); autoBackup();
 
@@ -1131,7 +1169,7 @@
   const loadedAt = Date.parse(document.lastModified) || Date.now();
   let hasUpdate = false, lastTouch = Date.now();
   ["pointerdown", "keydown"].forEach((ev) => addEventListener(ev, () => (lastTouch = Date.now()), { passive: true, capture: true }));
-  const busy = () => !!med || !!document.querySelector(".wk, .hiit, .pc") || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
+  const busy = () => !!med || !!document.querySelector(".wk, .hiit, .pc, .jr") || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
   async function checkUpdate() {
     if (hasUpdate || !navigator.onLine) return hasUpdate;
     try {
@@ -1159,6 +1197,7 @@
     const tab = sessionStorage.getItem("c365tab");
     if (tab) { sessionStorage.removeItem("c365tab"); show(tab); toast("อัปเดตแอปเป็นเวอร์ชันใหม่แล้ว ✨"); }
   } catch (e) {}
+  maybeIntro();
   window.Coach = { get S() { return S; }, aiKey, aiProvider, save, iso, today, toast, fmt, esc, START, weekIdx, waterGoal, pushWidget, addMeal, afterMeal, closeKitchen, plannedMeal, refresh, celebrate, plan, goalAt, PHASES, DIET_BREAKS,
     total, y1End, startW, goalW, trendWeight, lastWeight, targetFor, show, renderProfile };
   const fromHash = () => { const h = location.hash.slice(1); if (["today", "food", "train", "money", "settings"].includes(h)) show(h); };
