@@ -1,12 +1,12 @@
 // Coach 365 — ข้อมูลทั้งหมดเก็บใน localStorage ของเครื่อง
 (() => {
-  const START = new Date(2026, 9, 9), START_TH = "ศุกร์ 9 ต.ค."; // วันที่ 1 ของแผน 2 ปี
+  const START = new Date(2026, 9, 10), START_TH = "เสาร์ 10 ต.ค."; // วันที่ 1 ของแผน 2 ปี
   const DAY = 86400000;
   // สัปดาห์นับแบบจันทร์–อาทิตย์ (สัปดาห์ 0 = สัปดาห์ที่มีวันเริ่ม) ให้แผนอาหาร รายการซื้อของ deload ตรงกับวัน meal prep อาทิตย์
   const START_OFF = (START.getDay() + 6) % 7;
   const weekIdx = (d) => Math.floor((Math.max(0, Math.round((d - START) / DAY)) + START_OFF) / 7);
   const SAVE_GOAL = 100000, PASSIVE_GOAL_DAY = 300;
-  const GOAL_END = new Date(2027, 9, 8); // เป้าเงินออม 1 ปี
+  const GOAL_END = new Date(2027, 9, 9); // เป้าเงินออม 1 ปี
   const STEPS = [5000, 7000, 9000, 10000, 11000, 12000, 12000, 12000, 12000, 12000, 12000, 12000];
   const BASE_DAYS = 730;
   // แผน 2 ปี: ปี 1 ลดไขมันจนลีน (รักษา/สร้างกล้ามไปด้วย) → ปี 2 สร้างกล้าม
@@ -300,8 +300,8 @@
   function celebrate(msg) { buzz([40, 60, 40]); toast(msg); const h = $("hero"); h.classList.add("pop"); setTimeout(() => h.classList.remove("pop"), 600); }
 
   // มื้อตามแผนของวันนี้ (จาก meals.js)
-  function plannedMeal(slot) {
-    const wk = WEEKS[weekIdx(today()) % 2], row = wk[(today().getDay() + 6) % 7];
+  function plannedMeal(slot, d = today()) {
+    const wk = WEEKS[weekIdx(d) % 2], row = wk[(d.getDay() + 6) % 7];
     return mealRef(row[slot]);
   }
   function addMeal(items, src, photoId = null) {
@@ -335,12 +335,14 @@
   function sleepAvg(n = 3) { const hs = []; for (let k = 0; k < n; k++) { const v = S.logs[iso(new Date(today() - k * DAY))]?.sleepH; if (v != null) hs.push(v); } return hs.length ? hs.reduce((a, b) => a + b, 0) / hs.length : null; }
 
   // ---------- สิ่งที่ต้องทำต่อไป ----------
-  function actions() {
-    const l = todayLog(), p = plan(today()), wd = today().getDay(), meals = l.food?.length || 0, target = p.steps;
+  // d = วันอื่น (ดูตารางล่วงหน้าก่อนวันเริ่ม): ใช้แสดงอย่างเดียว ปุ่มกดได้เฉพาะวันนี้
+  function actions(d = today()) {
+    const isToday = iso(d) === iso(today());
+    const l = isToday ? todayLog() : S.logs[iso(d)] || {}, p = plan(d), wd = d.getDay(), meals = l.food?.length || 0, target = p.steps;
     const A = [];
-    const est = sleepEst(), bed = yLog().bedAt, M = morningOf(today()), workday = wd >= 1 && wd <= 5;
+    const est = isToday ? sleepEst() : null, bed = yLog().bedAt, M = morningOf(d), workday = wd >= 1 && wd <= 5;
     // how = ขั้นตอนที่ต้องทำ (แตะรายการในตารางวันนี้เพื่อดู)
-    const exSteps = (k) => SESSIONS[k].items.map(([id, sets]) => { const last = lastLift(id, iso(today())); return `${EXERCISES[id].th} ${sets}${last?.w ? ` · ครั้งก่อน ${last.w} กก.${last.r ? ` × ${last.r}` : ""}` : ""}`; });
+    const exSteps = (k) => SESSIONS[k].items.map(([id, sets]) => { const last = lastLift(id, iso(d)); return `${EXERCISES[id].th} ${sets}${last?.w ? ` · ครั้งก่อน ${last.w} กก.${last.r ? ` × ${last.r}` : ""}` : ""}`; });
     A.push({ key: "wake", t: M.wake, title: "ตื่นแล้ว ☀️ เมื่อคืนนอนกี่ชั่วโมง", sub: est ? `เข้านอน ${bed} ตื่นตอนนี้ ≈ ${est} ชม. · เป้า 7–8 ชม.` : "เป้า 7–8 ชม. ต่อคืน กดเลือกชั่วโมงด้านล่าง", done: l.sleepH != null,
       how: ["ลุกทันที ไม่กดเลื่อนปลุก", "ดื่มน้ำ 500 มล.", "เข้าห้องน้ำ แล้วชั่งน้ำหนักก่อนกินดื่มอะไร (การ์ดน้ำหนักด้านล่าง)", "กดปุ่มนี้บอกว่าเมื่อคืนนอนกี่ชั่วโมง"],
       btn: est ? `ใช่ ${est} ชม. ✓` : "ใส่ชั่วโมง", act: est ? () => setSleep(est) : () => $("qSleep").scrollIntoView({ behavior: "smooth", block: "center" }), alt: est ? "แก้เอง" : null, altAct: () => $("qSleep").scrollIntoView({ behavior: "smooth", block: "center" }) });
@@ -362,7 +364,7 @@
     if (workday) A.push({ key: "restAm", t: "08:00", title: "พักก่อนไปทำงาน 45 นาที", sub: "อาบน้ำแต่งตัวเสร็จแล้ว นั่งพักสบายๆ ไม่ต้องรีบ ออกจากบ้าน 08:45", done: !!l.restAm,
       how: ["อาบน้ำแต่งตัวให้เสร็จก่อน", "นั่งพัก 45 นาที กาแฟดำ/ชาไม่หวานได้ (ยังไม่กินอาหาร)", "ไม่ต้องเปิดงาน ไม่ต้องรีบ", "08:45 ออกจากบ้าน"], btn: "พักแล้ว ☕", act: () => setFlag("restAm", "พร้อมไปทำงานแล้ว 💼") });
     const meal = (t, slot, title, need) => {
-      const m = plannedMeal(slot);
+      const m = plannedMeal(slot, d);
       A.push({ key: "meal" + slot, t, title, sub: `ตามแผน: ${m.th} (${m.kcal} kcal)`, done: meals >= need,
         how: [`ตามแผน: ${m.th} · ${m.kcal} kcal · โปรตีน ${m.p} ก.`, "กินโปรตีนก่อน ตามด้วยผัก แล้วค่อยข้าว", "กินตามแผน → กด \"กินตามแผน ✓\"", "กินอย่างอื่น → \"ถ่ายรูป\" ให้ AI ประเมินแคลอรี่"],
         btn: "กินตามแผน ✓", act: () => { addMeal([m], "ตามแผน"); celebrate(`บันทึก ${m.th} แล้ว`); }, alt: "ถ่ายรูป", altAct: () => { show("food"); $("photoIn").click(); } });
@@ -378,7 +380,7 @@
     A.push({ key: "room", t: "22:00", title: "เก็บห้อง 10 นาที", sub: "ผ้าแห้งพับเก็บ ของวางที่เดิม", done: !!l.room,
       how: ["ตั้งเวลา 10 นาที", "ผ้าแห้งพับเก็บ เสื้อผ้าใช้แล้วลงตะกร้า", "ของบนโต๊ะ/พื้นกลับที่เดิม", "เตรียมชุด + กระเป๋าของพรุ่งนี้"], btn: "เก็บแล้ว", act: () => setFlag("room", "ห้องสะอาด สมองโล่ง ✨") });
     // วันแรก + ทุกอาทิตย์: วัดตัว (อาทิตย์แรกของเดือนวัดรอบคอด้วย ใช้คำนวณไขมัน)
-    const full = p.day === 1 || wd === 0, neck = p.day === 1 || (wd === 0 && today().getDate() <= 7);
+    const full = p.day === 1 || wd === 0, neck = p.day === 1 || (wd === 0 && d.getDate() <= 7);
     if (full || l.weight == null) A.push({ key: "weigh", t: p.day === 1 || wd === 0 ? M.wake : "22:05",
       title: neck ? "ชั่งน้ำหนัก + วัดรอบเอว + รอบคอ" : full ? "ชั่งน้ำหนัก + วัดรอบเอว" : "ชั่งน้ำหนัก",
       sub: full ? `หลังเข้าห้องน้ำ ก่อนกินดื่ม · เอววัดระดับสะดือ หายใจออกปกติ ไม่แขม่ว${neck ? " · คอวัดใต้ลูกกระเดือก" : ""}` : "ตอนเช้าก่อนกินแม่นสุด แต่ตอนไหนก็ได้ดีกว่าไม่ชั่ง",
@@ -388,9 +390,9 @@
     A.push({ key: "medNight", t: "22:45", title: "สมาธิก่อนนอน 5 นาที", sub: "แล้ววางมือถือไกลเตียง", done: (l.medNight ?? ((l.meditateMin || 0) >= 15 ? 5 : 0)) >= 5,
       how: ["นั่งบนเตียง กด \"เริ่มเลย\" หายใจเข้า 4 ออก 6 นาน 5 นาที", "จด 3 บรรทัดในช่องโน้ตด้านล่าง: ทำอะไรดี / พลาดอะไร / พรุ่งนี้ทำอะไร", "วางมือถือไกลเตียง"], btn: "เริ่มเลย", act: () => startMed(5) });
     const avg = sleepAvg();
-    if (!FSP() && (!S.lastBackup || (today() - parse(S.lastBackup)) / DAY >= 7)) A.push({ key: "backup", t: "22:10", title: "สำรองข้อมูล (สัปดาห์ละครั้ง)", sub: "กดแล้วเก็บไฟล์ไว้ใน Drive หรือส่งเข้า LINE ตัวเอง กันมือถือหาย", done: false,
+    if (isToday && !FSP() && (!S.lastBackup || (today() - parse(S.lastBackup)) / DAY >= 7)) A.push({ key: "backup", t: "22:10", title: "สำรองข้อมูล (สัปดาห์ละครั้ง)", sub: "กดแล้วเก็บไฟล์ไว้ใน Drive หรือส่งเข้า LINE ตัวเอง กันมือถือหาย", done: false,
       how: ["กด \"ส่งออกเลย\" จะได้ไฟล์ .json", "ส่งไฟล์เข้า LINE ตัวเอง หรือเก็บใน Google Drive", "มือถือหาย/ลงแอปใหม่ ใช้ปุ่มนำเข้าในแท็บตั้งค่า"], btn: "ส่งออกเลย", act: () => $("exportJson").click() });
-    const nextWake = morningOf(new Date(today().getTime() + DAY)).wake;
+    const nextWake = morningOf(new Date(d.getTime() + DAY)).wake;
     A.push({ key: "bed", t: BED, how: ["หรี่ไฟ ปิดจอ ห้องเย็นและมืด", `ตั้งปลุก ${nextWake} แล้ววางมือถือไกลเตียง`, "กด \"นอนแล้ว 😴\" ตื่นมาแอปจะคิดชั่วโมงนอนให้"],
       title: `นอน (ตื่น ${nextWake} = ${nextWake === "06:30" ? "7.5" : "8.5"} ชม.)`, sub: avg != null && avg < 7 ? `3 คืนล่าสุดนอนเฉลี่ย ${avg.toFixed(1)} ชม. คืนนี้เข้านอนเร็วขึ้นได้ยิ่งดี` : "ห้องมืด เย็น มือถือไกลเตียง นอนพอ = หิวน้อย กล้ามไม่หาย",
       done: !!l.sleep || !!l.bedAt, btn: "นอนแล้ว 😴", act: goBed });
@@ -545,8 +547,11 @@
   };
   let tlRows = [], tlOpen = null, tlPast = false;
   function renderSchedule() {
-    const d = today(), now = hmNow(), wd = d.getDay();
-    const A = actions(), cur = A.find((x) => !x.done && x.t <= now) || A.find((x) => !x.done);
+    // ก่อนวันเริ่ม: โชว์ตารางของวันแรกล่วงหน้า (ดูอย่างเดียว) แทนวันซ้อมมือ
+    const pre = idx(today()) < 0, d = pre ? new Date(START.getTime()) : today(), now = pre ? "00:00" : hmNow(), wd = d.getDay();
+    $("tlTitle").textContent = pre ? (idx(today()) === -1 ? "ตารางพรุ่งนี้ · วันที่ 1" : `ตารางวันแรก · ${START_TH}`) : "ตารางวันนี้";
+    $("tlSub").textContent = pre ? "ดูล่วงหน้าว่าวันแรกต้องทำอะไร แตะดูขั้นตอนได้ ปุ่มจะกดได้วันจริง" : "แตะรายการเพื่อดูว่าต้องทำอะไร แล้วกดเริ่มได้เลย";
+    const A = actions(d), cur = pre ? null : A.find((x) => !x.done && x.t <= now) || A.find((x) => !x.done);
     const rows = A.map((a) => ({ ...a, state: a.done ? "done" : a === cur ? (a.t <= now ? "now" : "up") : a.t <= now ? "late" : "next" }));
     const info = (key, t, end, rest) => rows.push({ key, t, title: INFO[key][0], how: INFO[key][1], rest, info: true, state: end <= now ? "past" : t <= now ? "on" : "next" });
     REMINDERS.forEach((r) => { if (INFO[r.id] && dueToday(r, d)) { const ts = r.time.split(","); info(r.id, ts[0], addMin(ts[ts.length - 1], r.rest || 5), r.rest); } });
@@ -559,7 +564,7 @@
     tlRows = rows;
     const tag = (r) => (r.state === "now" ? `<span class="tag now">ตอนนี้</span>` : r.state === "up" ? `<span class="tag now">ต่อไป</span>` : r.state === "late" ? `<span class="tag late">เลยเวลา</span>` : r.rest ? `<span class="pill">พัก ${r.rest} นาที</span>` : "");
     const panel = (r, i) => `<div class="tl-how">${r.sub ? `<p class="muted">${r.sub}</p>` : ""}<ol>${r.how.map((s) => `<li>${s}</li>`).join("")}</ol>`
-      + (r.info ? "" : r.done ? `<p class="ok">✓ ทำแล้ว</p>` : `<div class="row"><button class="btn" type="button" data-tl-act="${i}">${r.btn}</button>${r.alt ? `<button class="btn ghost" type="button" data-tl-alt="${i}">${r.alt}</button>` : ""}</div>`) + `</div>`;
+      + (r.info ? "" : pre ? `<p class="muted">ดูล่วงหน้า · กดได้${START_TH}</p>` : r.done ? `<p class="ok">✓ ทำแล้ว</p>` : `<div class="row"><button class="btn" type="button" data-tl-act="${i}">${r.btn}</button>${r.alt ? `<button class="btn ghost" type="button" data-tl-alt="${i}">${r.alt}</button>` : ""}</div>`) + `</div>`;
     $("schedule").innerHTML = (nGone ? `<button class="tl-past" type="button" data-tl-past aria-expanded="${tlPast}">${tlPast ? "ซ่อนที่ผ่านไปแล้ว" : `✓ ทำแล้ว/ผ่านไปแล้ว ${nGone} รายการ · แตะเพื่อดู`}</button>` : "")
       + rows.map((r, i) => (gone(r) && !tlPast && tlOpen !== r.key ? "" : `<div class="tl-item ${r.state}${r.info ? " info" : ""}${tlOpen === r.key ? " open" : ""}">`
         + `<button class="tl-row" type="button" data-tl="${i}" aria-expanded="${tlOpen === r.key}"><span class="t">${r.t}</span><span class="tl-dot">${r.state === "done" ? "✓" : ""}</span><span class="tl-txt"><span class="ttl">${r.title}</span>${tag(r)}</span><span class="chev" aria-hidden="true">›</span></button>`
