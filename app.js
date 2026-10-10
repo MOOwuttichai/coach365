@@ -556,9 +556,9 @@
     const pre = idx(today()) < 0, d = pre ? new Date(START.getTime()) : today(), now = pre ? "00:00" : hmNow(), wd = d.getDay();
     $("tlTitle").textContent = pre ? (idx(today()) === -1 ? "ตารางพรุ่งนี้ · วันที่ 1" : `ตารางวันแรก · ${START_TH}`) : "ตารางวันนี้";
     const jm = journeyMode(); $("jrBtn").textContent = jm === "preview" ? "🎬 ดูตัวอย่างวันแรก" : jm === "recap" ? "🎬 ดูสรุปวันนี้" : "🎬 ดูเป็นเรื่อง";
-    if (!pre && rows.every((r) => r.done) && S.jRecap !== iso(today())) maybeRecap();
     $("tlSub").textContent = pre ? "ดูล่วงหน้าว่าวันแรกต้องทำอะไร แตะดูขั้นตอนได้ ปุ่มจะกดได้วันจริง" : "แตะรายการเพื่อดูว่าต้องทำอะไร แล้วกดเริ่มได้เลย";
     const rows = dayActs(d, now, pre);
+    if (!pre && rows.every((r) => r.done) && S.jRecap !== iso(today())) maybeRecap(); // ทำครบทุกอย่าง = สรุปวัน
     const info = (key, t, end, rest) => rows.push({ key, t, title: INFO[key][0], how: INFO[key][1], rest, info: true, state: end <= now ? "past" : t <= now ? "on" : "next" });
     REMINDERS.forEach((r) => { if (INFO[r.id] && dueToday(r, d)) { const ts = r.time.split(","); info(r.id, ts[0], addMin(ts[ts.length - 1], r.rest || 5), r.rest); } });
     if (wd >= 1 && wd <= 5) info("work", "09:00", "18:00");
@@ -1163,9 +1163,11 @@
   renderAll(); applyWidgetPending(); renderBackup(); autoBackup();
 
   // ---------- อัปเดตอัตโนมัติ ----------
-  // GitHub Pages ประทับเวลาใหม่ให้ทุกไฟล์ทุกครั้งที่ขึ้นเวอร์ชันใหม่ → เทียบ Last-Modified ของหน้านี้บนเว็บกับหน้าที่โหลดอยู่
+  // ทุกครั้งที่ขึ้นเว็บ (Netlify) netlify-build.sh ใส่เลขเวอร์ชันไว้ใน <meta name="app-version"> และ version.txt → เลขไม่ตรง = มีของใหม่
+  // ไม่มีเลขเวอร์ชัน (รันในเครื่อง) ใช้ Last-Modified ของหน้าแทน
   // เช็กตอนเปิดแอป เปิดกลับมา และทุก 10 นาที มีของใหม่ = โหลดใหม่เอง ตอนแอปไปอยู่เบื้องหลัง เพิ่งเปิดกลับมา หรือไม่ได้แตะจอ 1 นาที
   // ไม่ขัดตอนเล่นเวท HIIT สมาธิ กล้อง หรือกำลังพิมพ์
+  const myVer = document.querySelector('meta[name="app-version"]')?.content || "", hasVer = !!myVer && !myVer.startsWith("__");
   const loadedAt = Date.parse(document.lastModified) || Date.now();
   let hasUpdate = false, lastTouch = Date.now();
   ["pointerdown", "keydown"].forEach((ev) => addEventListener(ev, () => (lastTouch = Date.now()), { passive: true, capture: true }));
@@ -1173,8 +1175,8 @@
   async function checkUpdate() {
     if (hasUpdate || !navigator.onLine) return hasUpdate;
     try {
-      const r = await fetch(location.pathname, { method: "HEAD", cache: "no-store" });
-      hasUpdate = r.ok && Date.parse(r.headers.get("last-modified") || "") > loadedAt + 1000;
+      if (hasVer) { const r = await fetch("version.txt", { cache: "no-store" }), v = r.ok ? (await r.text()).trim() : ""; hasUpdate = /^[\w.-]{1,40}$/.test(v) && v !== myVer; }
+      else { const r = await fetch(location.pathname, { method: "HEAD", cache: "no-store" }); hasUpdate = r.ok && Date.parse(r.headers.get("last-modified") || "") > loadedAt + 1000; }
     } catch (e) {}
     return hasUpdate;
   }

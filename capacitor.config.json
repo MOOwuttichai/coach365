@@ -3,8 +3,9 @@
   "appName": "Coach 365",
   "webDir": "www",
   "server": {
-    "url": "https://oofsssmarker.github.io/coach365/",
-    "cleartext": false
+    "url": "https://coach365-oofsss.netlify.app/",
+    "cleartext": false,
+    "errorPath": "offline.html"
   },
   "android": {
     "allowMixedContent": false,

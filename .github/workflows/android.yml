@@ -27,10 +27,10 @@ jobs:
       - name: Install Capacitor
         run: npm install --no-audit --no-fund
 
-      - name: Prepare web dir (bundled fallback; the app loads GitHub Pages)
+      - name: Prepare web dir (bundled offline page; the app loads Netlify)
         run: |
           mkdir -p www
-          cp -r index.html style.css *.js manifest.webmanifest icons img www/
+          cp -r index.html style.css *.js manifest.webmanifest offline.html icons img www/
 
       - name: Add Android project
         run: npx cap add android
