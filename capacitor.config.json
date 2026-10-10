@@ -3,7 +3,7 @@
   "appName": "Coach 365",
   "webDir": "www",
   "server": {
-    "url": "https://coach365-oofsss.netlify.app/",
+    "url": "https://moowuttichai.github.io/coach365/",
     "cleartext": false,
     "errorPath": "offline.html"
   },

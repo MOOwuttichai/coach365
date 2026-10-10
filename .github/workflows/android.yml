@@ -27,7 +27,7 @@ jobs:
       - name: Install Capacitor
         run: npm install --no-audit --no-fund
 
-      - name: Prepare web dir (bundled offline page; the app loads Netlify)
+      - name: Prepare web dir (bundled offline page; the app loads GitHub Pages)
         run: |
           mkdir -p www
           cp -r index.html style.css *.js manifest.webmanifest offline.html icons img www/

@@ -1163,11 +1163,9 @@
   renderAll(); applyWidgetPending(); renderBackup(); autoBackup();
 
   // ---------- อัปเดตอัตโนมัติ ----------
-  // ทุกครั้งที่ขึ้นเว็บ (Netlify) netlify-build.sh ใส่เลขเวอร์ชันไว้ใน <meta name="app-version"> และ version.txt → เลขไม่ตรง = มีของใหม่
-  // ไม่มีเลขเวอร์ชัน (รันในเครื่อง) ใช้ Last-Modified ของหน้าแทน
+  // GitHub Pages ประทับเวลาใหม่ให้ทุกไฟล์ทุกครั้งที่ขึ้นเวอร์ชันใหม่ → เทียบ Last-Modified ของหน้านี้บนเว็บกับหน้าที่โหลดอยู่
   // เช็กตอนเปิดแอป เปิดกลับมา และทุก 10 นาที มีของใหม่ = โหลดใหม่เอง ตอนแอปไปอยู่เบื้องหลัง เพิ่งเปิดกลับมา หรือไม่ได้แตะจอ 1 นาที
   // ไม่ขัดตอนเล่นเวท HIIT สมาธิ กล้อง หรือกำลังพิมพ์
-  const myVer = document.querySelector('meta[name="app-version"]')?.content || "", hasVer = !!myVer && !myVer.startsWith("__");
   const loadedAt = Date.parse(document.lastModified) || Date.now();
   let hasUpdate = false, lastTouch = Date.now();
   ["pointerdown", "keydown"].forEach((ev) => addEventListener(ev, () => (lastTouch = Date.now()), { passive: true, capture: true }));
@@ -1175,8 +1173,8 @@
   async function checkUpdate() {
     if (hasUpdate || !navigator.onLine) return hasUpdate;
     try {
-      if (hasVer) { const r = await fetch("version.txt", { cache: "no-store" }), v = r.ok ? (await r.text()).trim() : ""; hasUpdate = /^[\w.-]{1,40}$/.test(v) && v !== myVer; }
-      else { const r = await fetch(location.pathname, { method: "HEAD", cache: "no-store" }); hasUpdate = r.ok && Date.parse(r.headers.get("last-modified") || "") > loadedAt + 1000; }
+      const r = await fetch(location.pathname, { method: "HEAD", cache: "no-store" });
+      hasUpdate = r.ok && Date.parse(r.headers.get("last-modified") || "") > loadedAt + 1000;
     } catch (e) {}
     return hasUpdate;
   }
