@@ -1,12 +1,12 @@
 // Coach 365 — ข้อมูลทั้งหมดเก็บใน localStorage ของเครื่อง
 (() => {
-  const START = new Date(2026, 9, 10), START_TH = "เสาร์ 10 ต.ค."; // วันที่ 1 ของแผน 2 ปี
+  const START = new Date(2026, 9, 17), START_TH = "เสาร์ 17 ต.ค."; // วันที่ 1 ของแผน 2 ปี
   const DAY = 86400000;
   // สัปดาห์นับแบบจันทร์–อาทิตย์ (สัปดาห์ 0 = สัปดาห์ที่มีวันเริ่ม) ให้แผนอาหาร รายการซื้อของ deload ตรงกับวัน meal prep อาทิตย์
   const START_OFF = (START.getDay() + 6) % 7;
   const weekIdx = (d) => Math.floor((Math.max(0, Math.round((d - START) / DAY)) + START_OFF) / 7);
   const SAVE_GOAL = 100000, PASSIVE_GOAL_DAY = 300;
-  const GOAL_END = new Date(2027, 9, 9); // เป้าเงินออม 1 ปี
+  const GOAL_END = new Date(2027, 9, 16); // เป้าเงินออม 1 ปี
   const STEPS = [5000, 7000, 9000, 10000, 11000, 12000, 12000, 12000, 12000, 12000, 12000, 12000];
   const BASE_DAYS = 730;
   // แผน 2 ปี: ปี 1 ลดไขมันจนลีน (รักษา/สร้างกล้ามไปด้วย) → ปี 2 สร้างกล้าม
@@ -793,13 +793,18 @@
   // ---------- แจ้งเตือนแบบแอป (Android ผ่าน Capacitor) ----------
   function native() { return window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.LocalNotifications : null; }
   const atTime = (d, hm) => { const [h, m] = hm.split(":").map(Number); const x = new Date(d); x.setHours(h, m, 0, 0); return x; };
-  // แจ้งเตือนครั้งเดียวล่วงหน้า 7 วัน: นับถอยหลังก่อนวันเริ่ม + ทวง (เฉพาะที่ยังไม่ทำ) + หายไปไหน
+  // ทุกแจ้งเตือนเป็นแบบครั้งเดียวล่วงหน้า 7 วัน (เปิดแอป = ต่อให้อีก 7 วัน): ตามตาราง + นับถอยหลังก่อนวันเริ่ม + ทวง (เฉพาะที่ยังไม่ทำ) + หายไปไหน
+  // ไม่ใช้ repeats: Android ตั้งรอบถัดไปของแจ้งเตือนซ้ำโดยไม่มี allowWhileIdle → ตอนจอดับ/ประหยัดแบตจะเงียบ
+  const REM_ID = (d, n) => 200000 + (idx(d) + 100) * 100 + n;
   function oneShots() {
     const out = [], now = new Date(), t0 = today(), roast = S.tone === "roast";
     const add = (id, when, title, body) => { if (when > now) out.push({ id, title, body, schedule: { at: when, allowWhileIdle: true } }); };
     for (let k = 0; k < 7; k++) {
       const d = new Date(t0.getTime() + k * DAY), i = idx(d), l = S.logs[iso(d)] || {};
       if (i >= total()) break;
+      // ตามตาราง: แต่ละวันได้คำพูดโค้ชคนละประโยค
+      let n = 0;
+      REMINDERS.forEach((r) => { if (S.rem[r.id] !== false && dueToday(r, d)) r.time.split(",").forEach((t) => add(REM_ID(d, n++), atTime(d, t), coachTitle(r.id), r.msg)); });
       if (i < 0) add(NAG_ID(d, 8), atTime(d, "21:00"),
         i === -1 ? (roast ? "พรุ่งนี้วันที่ 1 รอบนี้ห้ามเลื่อน" : "พรุ่งนี้วันที่ 1 แล้ว 🔥") : roast ? `อีก ${-i} วันเริ่ม ข้ออ้างหมดแล้วนะ` : `อีก ${-i} วันเริ่ม เตรียมตัวกัน 💪`,
         i === -1 ? `คืนนี้เตรียมตาชั่ง สายวัด นอน ${BED} · พรุ่งนี้ ${morningOf(START).wake} ชั่ง + วัดเอว/คอ + ถ่ายรูป ก่อนกินดื่ม` : "เตรียมให้พร้อมก่อนวันแรก: ตาชั่ง สายวัด อกไก่ ไข่ ผัก · ลองกดทุกปุ่มในแอปได้เลย");
@@ -810,29 +815,24 @@
     if (S.nag !== false) AWAY.forEach(([n, t, rt, st, body], j) => add(900001 + j, atTime(new Date(t0.getTime() + n * DAY), t), roast ? rt : st, body));
     return out;
   }
-  async function scheduleNative(ask = true) {
+  // เรียกซ้อนกันได้ (เปิดแอป + เปลี่ยนตั้งค่า): ต่อคิวไว้ ไม่ให้ยกเลิก/ตั้งใหม่ทับกันกลางทาง
+  let schedQ = Promise.resolve();
+  function scheduleNative(ask = true) { const run = () => scheduleNow(ask); return (schedQ = schedQ.then(run, run)); }
+  async function scheduleNow(ask) {
     const LN = native(); if (!LN) return false;
     try {
       const perm = await (ask ? LN.requestPermissions() : LN.checkPermissions()); if (perm.display !== "granted") return false;
-      const pending = await LN.getPending(); if (pending.notifications?.length) await LN.cancel(pending);
-      const list = []; let id = 1;
-      const WD = { SA: [7], SU: [1], WE: [1, 7], weekday: [2, 3, 4, 5, 6] };
-      REMINDERS.forEach((r) => {
-        if (S.rem[r.id] === false) return;
-        r.time.split(",").forEach((t) => {
-          const [hour, minute] = t.split(":").map(Number);
-          // แต่ละวันได้คำพูดโค้ชคนละประโยค
-          const one = (on) => list.push({ id: id++, title: coachTitle(r.id), body: r.msg, schedule: { on: { ...on, hour, minute }, repeats: true, allowWhileIdle: true } });
-          if (r.days === "daily") one({});
-          else if (r.days === "M1") one({ day: 1 });
-          else WD[r.days].forEach((weekday) => one({ weekday }));
-        });
-      });
-      list.push(...oneShots());
-      await LN.schedule({ notifications: list });
+      const pending = await LN.getPending(); if (pending.notifications?.length) await LN.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
+      const list = oneShots();
+      if (list.length) await LN.schedule({ notifications: list });
       nagOff = new Set(); S.notifDay = iso(today()); save();
       return list.length;
     } catch (e) { return false; }
+  }
+  // Android 12+: ไม่ได้สิทธิ์ "นาฬิกาปลุกและการเตือน" = แจ้งเตือนช้าได้เป็นชั่วโมง → พาไปหน้าตั้งค่าให้เปิด
+  async function exactOk(open) {
+    const LN = native(); if (!LN?.checkExactNotificationSetting) return true;
+    try { const ok = (await LN.checkExactNotificationSetting()).exact_alarm === "granted"; if (!ok && open) await LN.changeExactNotificationSetting(); return ok; } catch (e) { return true; }
   }
   // ทำแล้ว = ยกเลิกการทวงของวันนี้ (เรียกจาก save ทุกครั้ง)
   function syncNags() {
@@ -995,6 +995,7 @@
       Notification.permission === "granted" ? "เปิดแล้ว: แอปจะเตือนตามเวลาขณะที่แอปยังเปิดค้างหรืออยู่เบื้องหลัง" :
       Notification.permission === "denied" ? "ถูกบล็อกไว้ ไปเปิดในการตั้งค่าเว็บไซต์ของเบราว์เซอร์" : "ยังไม่ได้เปิด";
     $("notifState").textContent = st;
+    if (native()) exactOk(false).then((ok) => { if (!ok) $("notifState").textContent = "⚠️ ยังไม่ได้อนุญาต \"นาฬิกาปลุกและการเตือน\" แจ้งเตือนจะช้า กดปุ่มด้านล่างเพื่อเปิด"; });
     renderProfile();
     $("enableNotif").hidden = !native() && (!notifSupported() || Notification.permission === "granted");
     $("reminderList").innerHTML = REMINDERS.map((r) => `<label class="rem"><span class="t">${r.time.split(",")[0]}${r.time.includes(",") ? "+" : ""}</span><span class="m">${r.msg}<br><span class="small muted">${dayText[r.days]}${r.time.includes(",") ? " · " + r.time.replace(/,/g, ", ") : ""}</span></span><input type="checkbox" data-rem="${r.id}" ${S.rem[r.id] !== false ? "checked" : ""}></label>`).join("");
@@ -1009,7 +1010,11 @@
   $("nagOn").addEventListener("change", () => { S.nag = $("nagOn").checked; save(); scheduleNative(); toast(S.nag ? "เปิดทวงแล้ว ไม่ทำ = โดน" : "ปิดทวงแล้ว"); });
   $("whyIn").addEventListener("change", () => { S.why = $("whyIn").value.trim().slice(0, 60); save(); renderSettings(); scheduleNative(); toast(S.why ? "โค้ชจำไว้แล้ว จะเอามาทวงตอนขี้เกียจ" : "ลบเหตุผลแล้ว"); });
   $("enableNotif").addEventListener("click", async () => {
-    if (native()) { const n = await scheduleNative(); toast(n ? `ตั้งแจ้งเตือนในเครื่องแล้ว ${n} รายการ` : "ไม่ได้รับอนุญาต เปิดในการตั้งค่าแอป"); renderSettings(); return; }
+    if (native()) {
+      const n = await scheduleNative();
+      toast(n === false ? "ไม่ได้รับอนุญาต เปิดในการตั้งค่าแอป" : !(await exactOk(true)) ? "อนุญาต \"นาฬิกาปลุกและการเตือน\" ให้ Coach 365 แล้วกลับมาแอป" : `ตั้งแจ้งเตือน 7 วันข้างหน้าแล้ว ${n} รายการ`);
+      renderSettings(); return;
+    }
     const p = await Notification.requestPermission(); renderSettings(); if (p === "granted") notify("เปิดแจ้งเตือนแล้ว", "Coach 365 จะเตือนตามตาราง");
   });
   if (native()) scheduleNative();
